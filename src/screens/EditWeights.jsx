@@ -31,6 +31,11 @@ export default function EditWeights() {
     setExercises(prev => prev.map((e, i) => i === idx ? { ...e, failure_streak: val } : e))
   }
 
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    await db.delete()
+  }
+
   async function handleSave() {
     setSaving(true)
     const now = new Date().toISOString()
@@ -112,6 +117,10 @@ export default function EditWeights() {
           </div>
         ))}
       </div>
+
+      <button className="signout-btn" onClick={handleSignOut}>
+        Sign out
+      </button>
     </div>
   )
 }

@@ -954,6 +954,19 @@
   color: var(--red);
 }
 
+.signout-btn {
+  background: none;
+  color: var(--text2);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 1.25rem;
+  min-height: unset;
+  border-radius: 0;
+  width: 100%;
+  text-align: center;
+  margin-top: auto;
+}
+
 /* ── Progress ───────────────────────────────────────────────── */
 
 .progress-screen {
