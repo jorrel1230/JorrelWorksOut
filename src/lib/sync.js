@@ -1,6 +1,20 @@
 import { supabase } from './supabase'
 import { db } from './db'
 
+export async function pullFromSupabase(userId) {
+  const [{ data: exercises }, { data: sessions }, { data: liftResults }] = await Promise.all([
+    supabase.from('exercises').select('*').eq('user_id', userId),
+    supabase.from('workout_sessions').select('*').eq('user_id', userId),
+    supabase.from('lift_results').select('*'),
+  ])
+  await Promise.all([
+    exercises?.length   ? db.exercises.bulkPut(exercises)     : Promise.resolve(),
+    sessions?.length    ? db.sessions.bulkPut(sessions)       : Promise.resolve(),
+    liftResults?.length ? db.liftResults.bulkPut(liftResults) : Promise.resolve(),
+  ])
+  return (exercises?.length ?? 0) > 0
+}
+
 export async function pushSession({ userId, session, liftResults, updatedExercises }) {
   if (!navigator.onLine) {
     await enqueue({ session, liftResults, updatedExercises })

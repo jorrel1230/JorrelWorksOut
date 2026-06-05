@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { useSync } from './hooks/useSync'
+import { pullFromSupabase } from './lib/sync'
 import { db } from './lib/db'
-import { supabase } from './lib/supabase'
 import Auth from './screens/Auth'
 import Onboarding from './screens/Onboarding'
 import Home from './screens/Home'
@@ -17,16 +17,11 @@ import './App.css'
 
 async function checkOnboarding(userId) {
   const localCount = await db.exercises.where('user_id').equals(userId).count()
-  if (localCount > 0) return true
-
-  // User might have data from another device — pull from Supabase
-  const { data } = await supabase.from('exercises').select('*').eq('user_id', userId)
-  if (data && data.length > 0) {
-    await db.exercises.bulkPut(data)
+  if (localCount > 0) {
+    pullFromSupabase(userId).catch(() => {}) // background refresh
     return true
   }
-
-  return false
+  return pullFromSupabase(userId) // await on new device / wiped storage
 }
 
 function Splash() {
