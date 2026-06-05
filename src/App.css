@@ -69,6 +69,14 @@
   font-weight: 500;
 }
 
+.auth-code-input {
+  text-align: center;
+  letter-spacing: 0.35em;
+  font-size: 1.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Onboarding screen */
 .onboarding-screen {
   justify-content: center;

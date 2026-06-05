@@ -7,14 +7,22 @@ export default function RestTimer({ triggerTime, onDismiss }) {
 
   useEffect(() => {
     if (!triggerTime) return
-    setSeconds(DURATION)
-    const interval = setInterval(() => {
-      setSeconds(s => {
-        if (s <= 1) { clearInterval(interval); return 0 }
-        return s - 1
-      })
-    }, 1000)
-    return () => clearInterval(interval)
+
+    function tick() {
+      const elapsed = Math.floor((Date.now() - triggerTime.getTime()) / 1000)
+      const remaining = Math.max(0, DURATION - elapsed)
+      setSeconds(remaining)
+      if (remaining === 0) clearInterval(id)
+    }
+
+    tick()
+    const id = setInterval(tick, 1000)
+    // Snap to correct time immediately when user returns to app
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', tick)
+    }
   }, [triggerTime])
 
   if (!triggerTime) return null
