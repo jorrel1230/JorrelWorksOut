@@ -2,7 +2,7 @@
   "name": "Stronglifts 5x5",
   "short_name": "5x5",
   "description": "Stronglifts 5x5 workout tracker",
-  "start_url": "/",
+  "start_url": "/JorrelWorksOut/",
   "display": "standalone",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
