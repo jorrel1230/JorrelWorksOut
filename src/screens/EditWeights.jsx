@@ -74,7 +74,7 @@ export default function EditWeights() {
     <div className="screen onboarding-screen">
       <nav className="detail-nav" style={{ position: 'sticky', top: 0 }}>
         <button className="workout-nav-btn" onClick={() => navigate('/home')}>Cancel</button>
-        <span className="workout-nav-title">Edit Weights</span>
+        <span className="workout-nav-title">Settings</span>
         <button className="workout-nav-btn" onClick={handleSave} disabled={saving}>
           {saving ? '…' : 'Save'}
         </button>
