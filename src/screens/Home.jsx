@@ -67,6 +67,7 @@ export default function Home() {
   return (
     <div className="screen home-screen">
       <header className="home-header">
+        <button className="workout-nav-btn" onClick={() => navigate('/dashboard')}>‹ Back</button>
         <span className="home-logo">5×5</span>
         <button className="home-settings-btn" onClick={() => navigate('/edit-weights')} aria-label="Edit weights">
           ⚙

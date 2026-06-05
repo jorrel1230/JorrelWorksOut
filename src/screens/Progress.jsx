@@ -9,6 +9,20 @@ import {
 } from 'recharts'
 
 const ALL_LIFTS = ['Squat', 'Bench Press', 'Barbell Row', 'Overhead Press', 'Deadlift']
+const RANGES = [
+  { label: '30D', days: 30 },
+  { label: '3M',  days: 90 },
+  { label: '6M',  days: 180 },
+  { label: '1Y',  days: 365 },
+  { label: 'All', days: null },
+]
+
+function cutoffDate(days) {
+  if (!days) return null
+  const d = new Date()
+  d.setDate(d.getDate() - days)
+  return d.toISOString().split('T')[0]
+}
 
 function formatXTick(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -42,6 +56,7 @@ export default function Progress() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [activeLift, setActiveLift] = useState('Squat')
+  const [activeRange, setActiveRange] = useState('All')
   const [chartData, setChartData] = useState({})
 
   useEffect(() => {
@@ -94,7 +109,10 @@ export default function Progress() {
     load()
   }, [])
 
-  const points = chartData[activeLift] ?? []
+  const rangeDef = RANGES.find(r => r.label === activeRange) ?? RANGES[RANGES.length - 1]
+  const cutoff = cutoffDate(rangeDef.days)
+  const allPoints = chartData[activeLift] ?? []
+  const points = cutoff ? allPoints.filter(p => p.date >= cutoff) : allPoints
   const weights = points.map(p => p.weight)
   const minW = weights.length ? Math.min(...weights) : 0
   const maxW = weights.length ? Math.max(...weights) : 100
@@ -125,6 +143,18 @@ export default function Progress() {
             onClick={() => setActiveLift(lift)}
           >
             {LIFT_ABBR[lift]}
+          </button>
+        ))}
+      </div>
+
+      <div className="zone-chips">
+        {RANGES.map(r => (
+          <button
+            key={r.label}
+            className={`zone-chip ${activeRange === r.label ? 'zone-chip--active' : ''}`}
+            onClick={() => setActiveRange(r.label)}
+          >
+            {r.label}
           </button>
         ))}
       </div>

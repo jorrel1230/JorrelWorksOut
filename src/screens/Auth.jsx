@@ -26,8 +26,7 @@ export default function Auth() {
     <div className="screen auth-screen">
       <div className="auth-inner">
         <div className="auth-header">
-          <span className="auth-logo">5×5</span>
-          <p className="auth-subtitle">Stronglifts 5x5 Tracker</p>
+          <span className="auth-logo">JorrelWorksOut</span>
         </div>
 
         <div className="auth-form">

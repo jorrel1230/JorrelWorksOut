@@ -8,3 +8,8 @@ db.version(1).stores({
   liftResults: 'id, session_id',
   syncQueue:   '++id, entity, synced_at',
 })
+
+db.version(2).stores({
+  runs:        'id, user_id, date',
+  runSettings: 'id, user_id',
+})

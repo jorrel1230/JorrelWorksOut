@@ -69,6 +69,11 @@ body {
   letter-spacing: -0.05em;
 }
 
+.splash-title--long {
+  font-size: 1.75rem;
+  letter-spacing: -0.03em;
+}
+
 /* Buttons */
 button {
   cursor: pointer;

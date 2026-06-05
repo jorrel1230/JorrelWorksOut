@@ -1,3 +1,83 @@
+/* Dashboard screen */
+.dashboard-screen {
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.dashboard-inner {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+.dashboard-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dashboard-logo {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--red);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.dashboard-subtitle {
+  color: var(--text2);
+  font-size: 0.95rem;
+}
+
+.dashboard-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dashboard-btn {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* Run under construction screen */
+.run-construction-screen {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.run-construction-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 2rem;
+}
+
+.run-construction-icon {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.run-construction-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.run-construction-subtitle {
+  font-size: 0.9rem;
+  color: var(--text2);
+}
+
 /* Auth screen */
 .auth-screen {
   justify-content: center;
@@ -19,10 +99,10 @@
 
 .auth-logo {
   display: block;
-  font-size: 3.5rem;
+  font-size: 1.75rem;
   font-weight: 800;
   color: var(--red);
-  letter-spacing: -0.05em;
+  letter-spacing: -0.03em;
   line-height: 1;
   margin-bottom: 0.5rem;
 }
@@ -1066,4 +1146,195 @@
 .progress-tooltip-value {
   font-size: 13px;
   font-weight: 600;
+}
+
+/* ── Run screens ────────────────────────────────────────────── */
+
+.run-home-screen {
+  padding: 0;
+}
+
+.run-home-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+/* Log run form */
+.log-run-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.log-run-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  gap: 1rem;
+}
+
+.log-run-row--last {
+  border-bottom: none;
+}
+
+.log-run-label {
+  font-size: 0.95rem;
+  color: var(--text);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.log-run-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.log-run-input {
+  width: 76px;
+  text-align: right;
+  padding: 6px 10px;
+  min-height: unset;
+  font-size: 1rem;
+  border-radius: 8px;
+}
+
+.log-run-input--wide {
+  width: 104px;
+}
+
+.log-run-unit {
+  font-size: 0.85rem;
+  color: var(--text2);
+  flex-shrink: 0;
+}
+
+/* Run history */
+.run-history-meta {
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text2);
+  flex-wrap: wrap;
+}
+
+.run-history-hr {
+  color: var(--text2);
+}
+
+/* Zone chips (RunProgress zone filter) */
+.zone-chips {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.zone-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.zone-chip {
+  flex-shrink: 0;
+  background: var(--surface);
+  color: var(--text2);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+  min-height: unset;
+  border-radius: 999px;
+}
+
+.zone-chip--active {
+  background: var(--red);
+  color: #fff;
+}
+
+.zone-chip--prompt {
+  color: var(--red);
+  background: none;
+  font-size: 0.85rem;
+}
+
+/* Metric tabs (scrollable) */
+.metric-tabs {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.metric-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.metric-tabs .progress-tab {
+  flex-shrink: 0;
+  flex: unset;
+  padding: 0.5rem 0.75rem;
+}
+
+/* HR zone editor (RunSettings) */
+.zone-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.zone-row:last-child {
+  border-bottom: none;
+}
+
+.zone-name-input {
+  width: 48px;
+  text-align: center;
+  padding: 6px 8px;
+  min-height: unset;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+.zone-bound-input {
+  width: 60px;
+  text-align: center;
+  padding: 6px 8px;
+  min-height: unset;
+  font-size: 0.95rem;
+  border-radius: 8px;
+}
+
+.zone-dash {
+  color: var(--text2);
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.zone-delete-btn {
+  background: none;
+  color: var(--text2);
+  font-size: 1.25rem;
+  padding: 0.25rem;
+  min-height: unset;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
 }
