@@ -20,7 +20,7 @@ export default function Auth() {
     // On success, onAuthStateChange in useAuth fires and App.jsx redirects
   }
 
-  const ready = email && password.length >= 6
+  const ready = email && password
 
   return (
     <div className="screen auth-screen">
@@ -41,7 +41,7 @@ export default function Auth() {
           />
           <input
             type="password"
-            placeholder="Password (6+ characters)"
+            placeholder="Password"
             value={password}
             onChange={e => setPassword(e.target.value)}
             autoComplete="current-password"
