@@ -37,10 +37,14 @@ export default function RunDetail() {
   // edit fields
   const [editDate, setEditDate] = useState('')
   const [editDistance, setEditDistance] = useState('')
-  const [editDuration, setEditDuration] = useState('')
-  const [editAvgPace, setEditAvgPace] = useState('')
+  const [editDurationHr, setEditDurationHr] = useState('')
+  const [editDurationMin, setEditDurationMin] = useState('')
+  const [editDurationSec, setEditDurationSec] = useState('')
+  const [editAvgPaceMin, setEditAvgPaceMin] = useState('')
+  const [editAvgPaceSec, setEditAvgPaceSec] = useState('')
   const [editAvgHr, setEditAvgHr] = useState('')
-  const [editZ2Time, setEditZ2Time] = useState('')
+  const [editZ2TimeMin, setEditZ2TimeMin] = useState('')
+  const [editZ2TimeSec, setEditZ2TimeSec] = useState('')
   const [editAvgCadence, setEditAvgCadence] = useState('')
   const [editElevation, setEditElevation] = useState('')
   const [editAvgPower, setEditAvgPower] = useState('')
@@ -54,10 +58,17 @@ export default function RunDetail() {
   function enterEdit() {
     setEditDate(run.date)
     setEditDistance(run.distance != null ? String(run.distance) : '')
-    setEditDuration(run.duration_seconds != null ? formatDuration(run.duration_seconds) : '')
-    setEditAvgPace(run.avg_pace ?? '')
+    const dp = run.duration_seconds != null ? formatDuration(run.duration_seconds).split(':') : []
+    setEditDurationHr(dp.length === 3 ? dp[0] : '')
+    setEditDurationMin(dp.length === 3 ? dp[1] : (dp[0] ?? ''))
+    setEditDurationSec(dp.length >= 2 ? dp[dp.length - 1] : '')
+    const pp = (run.avg_pace ?? '').split(':')
+    setEditAvgPaceMin(pp[0] || '')
+    setEditAvgPaceSec(pp[1] || '')
     setEditAvgHr(run.avg_hr != null ? String(run.avg_hr) : '')
-    setEditZ2Time(run.z2_time_seconds != null ? formatDuration(run.z2_time_seconds) : '')
+    const zp = run.z2_time_seconds != null ? formatDuration(run.z2_time_seconds).split(':') : []
+    setEditZ2TimeMin(zp[0] || '')
+    setEditZ2TimeSec(zp[1] || '')
     setEditAvgCadence(run.avg_cadence != null ? String(run.avg_cadence) : '')
     setEditElevation(run.elevation_gain != null ? String(run.elevation_gain) : '')
     setEditAvgPower(run.avg_power != null ? String(run.avg_power) : '')
@@ -71,8 +82,14 @@ export default function RunDetail() {
     setEditError('')
     const { data: { session } } = await supabase.auth.getSession()
 
-    const durationSecs = parseDuration(editDuration)
-    const z2Secs = parseDuration(editZ2Time)
+    const durationStr = (editDurationHr || editDurationMin || editDurationSec)
+      ? `${editDurationHr || '0'}:${String(parseInt(editDurationMin) || 0).padStart(2,'0')}:${String(parseInt(editDurationSec) || 0).padStart(2,'0')}`
+      : ''
+    const z2Str = (editZ2TimeMin || editZ2TimeSec)
+      ? `${editZ2TimeMin || '0'}:${String(parseInt(editZ2TimeSec) || 0).padStart(2,'0')}`
+      : ''
+    const durationSecs = parseDuration(durationStr)
+    const z2Secs = parseDuration(z2Str)
     if (z2Secs != null && durationSecs != null && z2Secs > durationSecs) {
       setEditError('Z2 time exceeds total duration')
       setSaving(false)
@@ -84,7 +101,7 @@ export default function RunDetail() {
       date:             editDate,
       distance:         editDistance ? parseFloat(editDistance) : null,
       duration_seconds: durationSecs,
-      avg_pace:         editAvgPace || null,
+      avg_pace:         (editAvgPaceMin || editAvgPaceSec) ? `${editAvgPaceMin || '0'}:${String(parseInt(editAvgPaceSec) || 0).padStart(2,'0')}` : null,
       avg_hr:           editAvgHr ? parseInt(editAvgHr) : null,
       z2_time_seconds:  z2Secs,
       avg_cadence:      editAvgCadence ? parseInt(editAvgCadence) : null,
@@ -206,12 +223,20 @@ export default function RunDetail() {
           </div>
           <div className="log-run-row">
             <span className="log-run-label">Duration</span>
-            <input className="log-run-input log-run-input--wide" type="text" inputMode="numeric" placeholder="0:00:00" value={editDuration} onChange={e => setEditDuration(e.target.value)} />
+            <div className="log-run-input-wrap">
+              <input className="log-run-input log-run-input--time-part" type="number" inputMode="numeric" min="0" placeholder="0" value={editDurationHr} onChange={e => setEditDurationHr(e.target.value)} />
+              <span className="log-run-time-sep">:</span>
+              <input className="log-run-input log-run-input--time-part" type="number" inputMode="numeric" min="0" max="59" placeholder="00" value={editDurationMin} onChange={e => setEditDurationMin(e.target.value)} />
+              <span className="log-run-time-sep">:</span>
+              <input className="log-run-input log-run-input--time-part" type="number" inputMode="numeric" min="0" max="59" placeholder="00" value={editDurationSec} onChange={e => setEditDurationSec(e.target.value)} />
+            </div>
           </div>
           <div className="log-run-row">
             <span className="log-run-label">Avg Pace</span>
             <div className="log-run-input-wrap">
-              <input className="log-run-input" type="text" inputMode="numeric" placeholder="0:00" value={editAvgPace} onChange={e => setEditAvgPace(e.target.value)} />
+              <input className="log-run-input log-run-input--time-part" type="number" inputMode="numeric" min="0" placeholder="0" value={editAvgPaceMin} onChange={e => setEditAvgPaceMin(e.target.value)} />
+              <span className="log-run-time-sep">:</span>
+              <input className="log-run-input log-run-input--time-part" type="number" inputMode="numeric" min="0" max="59" placeholder="00" value={editAvgPaceSec} onChange={e => setEditAvgPaceSec(e.target.value)} />
               <span className="log-run-unit">/mi</span>
             </div>
           </div>
@@ -225,7 +250,9 @@ export default function RunDetail() {
           <div className="log-run-row">
             <span className="log-run-label">Z2 Time</span>
             <div className="log-run-input-wrap">
-              <input className="log-run-input log-run-input--wide" type="text" inputMode="numeric" placeholder="0:00" value={editZ2Time} onChange={e => setEditZ2Time(e.target.value)} />
+              <input className="log-run-input log-run-input--time-part" type="number" inputMode="numeric" min="0" placeholder="0" value={editZ2TimeMin} onChange={e => setEditZ2TimeMin(e.target.value)} />
+              <span className="log-run-time-sep">:</span>
+              <input className="log-run-input log-run-input--time-part" type="number" inputMode="numeric" min="0" max="59" placeholder="00" value={editZ2TimeSec} onChange={e => setEditZ2TimeSec(e.target.value)} />
             </div>
           </div>
           <div className="log-run-row">

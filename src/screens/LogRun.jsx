@@ -13,10 +13,14 @@ export default function LogRun() {
 
   const [date, setDate] = useState(searchParams.get('date') || TODAY_ISO)
   const [distance, setDistance] = useState('')
-  const [duration, setDuration] = useState('')
-  const [avgPace, setAvgPace] = useState('')
+  const [durationHr, setDurationHr] = useState('')
+  const [durationMin, setDurationMin] = useState('')
+  const [durationSec, setDurationSec] = useState('')
+  const [avgPaceMin, setAvgPaceMin] = useState('')
+  const [avgPaceSec, setAvgPaceSec] = useState('')
   const [avgHr, setAvgHr] = useState('')
-  const [z2Time, setZ2Time] = useState('')
+  const [z2TimeMin, setZ2TimeMin] = useState('')
+  const [z2TimeSec, setZ2TimeSec] = useState('')
   const [avgCadence, setAvgCadence] = useState('')
   const [elevationGain, setElevationGain] = useState('')
   const [avgPower, setAvgPower] = useState('')
@@ -31,8 +35,14 @@ export default function LogRun() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { setSaving(false); return }
 
-    const durationSecs = parseDuration(duration)
-    const z2Secs = parseDuration(z2Time)
+    const durationStr = (durationHr || durationMin || durationSec)
+      ? `${durationHr || '0'}:${String(parseInt(durationMin) || 0).padStart(2,'0')}:${String(parseInt(durationSec) || 0).padStart(2,'0')}`
+      : ''
+    const z2Str = (z2TimeMin || z2TimeSec)
+      ? `${z2TimeMin || '0'}:${String(parseInt(z2TimeSec) || 0).padStart(2,'0')}`
+      : ''
+    const durationSecs = parseDuration(durationStr)
+    const z2Secs = parseDuration(z2Str)
     if (z2Secs != null && durationSecs != null && z2Secs > durationSecs) {
       setError('Z2 time exceeds total duration')
       setSaving(false)
@@ -45,7 +55,7 @@ export default function LogRun() {
       date,
       distance:         distance ? parseFloat(distance) : null,
       duration_seconds: durationSecs,
-      avg_pace:         avgPace || null,
+      avg_pace:         (avgPaceMin || avgPaceSec) ? `${avgPaceMin || '0'}:${String(parseInt(avgPaceSec) || 0).padStart(2,'0')}` : null,
       avg_hr:           avgHr ? parseInt(avgHr) : null,
       z2_time_seconds:  z2Secs,
       avg_cadence:      avgCadence ? parseInt(avgCadence) : null,
@@ -93,13 +103,19 @@ export default function LogRun() {
           <div className="log-run-row">
             <span className="log-run-label">Duration</span>
             <div className="log-run-input-wrap">
-              <input className="log-run-input log-run-input--wide" type="text" inputMode="numeric" placeholder="0:00:00" value={duration} onChange={e => setDuration(e.target.value)} />
+              <input className="log-run-input log-run-input--time-part" type="number" inputMode="numeric" min="0" placeholder="0" value={durationHr} onChange={e => setDurationHr(e.target.value)} />
+              <span className="log-run-time-sep">:</span>
+              <input className="log-run-input log-run-input--time-part" type="number" inputMode="numeric" min="0" max="59" placeholder="00" value={durationMin} onChange={e => setDurationMin(e.target.value)} />
+              <span className="log-run-time-sep">:</span>
+              <input className="log-run-input log-run-input--time-part" type="number" inputMode="numeric" min="0" max="59" placeholder="00" value={durationSec} onChange={e => setDurationSec(e.target.value)} />
             </div>
           </div>
           <div className="log-run-row">
             <span className="log-run-label">Avg Pace</span>
             <div className="log-run-input-wrap">
-              <input className="log-run-input" type="text" inputMode="numeric" placeholder="0:00" value={avgPace} onChange={e => setAvgPace(e.target.value)} />
+              <input className="log-run-input log-run-input--time-part" type="number" inputMode="numeric" min="0" placeholder="0" value={avgPaceMin} onChange={e => setAvgPaceMin(e.target.value)} />
+              <span className="log-run-time-sep">:</span>
+              <input className="log-run-input log-run-input--time-part" type="number" inputMode="numeric" min="0" max="59" placeholder="00" value={avgPaceSec} onChange={e => setAvgPaceSec(e.target.value)} />
               <span className="log-run-unit">/mi</span>
             </div>
           </div>
@@ -113,7 +129,9 @@ export default function LogRun() {
           <div className="log-run-row">
             <span className="log-run-label">Z2 Time</span>
             <div className="log-run-input-wrap">
-              <input className="log-run-input log-run-input--wide" type="text" inputMode="numeric" placeholder="0:00" value={z2Time} onChange={e => setZ2Time(e.target.value)} />
+              <input className="log-run-input log-run-input--time-part" type="number" inputMode="numeric" min="0" placeholder="0" value={z2TimeMin} onChange={e => setZ2TimeMin(e.target.value)} />
+              <span className="log-run-time-sep">:</span>
+              <input className="log-run-input log-run-input--time-part" type="number" inputMode="numeric" min="0" max="59" placeholder="00" value={z2TimeSec} onChange={e => setZ2TimeSec(e.target.value)} />
             </div>
           </div>
           <div className="log-run-row">

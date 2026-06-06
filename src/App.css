@@ -1209,6 +1209,17 @@
   width: 104px;
 }
 
+.log-run-input--time-part {
+  width: 48px;
+  text-align: center;
+}
+
+.log-run-time-sep {
+  font-size: 1rem;
+  color: var(--text2);
+  font-weight: 600;
+}
+
 .log-run-unit {
   font-size: 0.85rem;
   color: var(--text2);
