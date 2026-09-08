@@ -2,147 +2,126 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
-import { WORKOUT_LIFTS, nextWorkoutType, sortSessionsDesc } from '../lib/workout'
-import Sheet from '../components/Sheet'
-
-const TODAY = new Date().toLocaleDateString('en-US', {
-  weekday: 'long', month: 'long', day: 'numeric',
-})
-const TODAY_ISO = new Date().toISOString().split('T')[0]
+import { sortSessionsDesc, formatDate } from '../lib/workout'
 
 export default function Home() {
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(true)
-  const [nextType, setNextType] = useState('A')
-  const [lifts, setLifts] = useState([])
-
-  const [showLogSheet, setShowLogSheet] = useState(false)
-  const [logDate, setLogDate] = useState(TODAY_ISO)
-  const [logType, setLogType] = useState('A')
+  const [sessions, setSessions] = useState([])
+  const [userId, setUserId] = useState(null)
 
   useEffect(() => {
-    async function load() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUserId(session.user.id)
+      } else {
+        navigate('/login')
+      }
+    })
+  }, [navigate])
 
-      const userId = session.user.id
+  useEffect(() => {
+    if (!userId) return
 
-      const [exercises, allSessions] = await Promise.all([
-        db.exercises.where('user_id').equals(userId).toArray(),
-        db.sessions.where('user_id').equals(userId).toArray(),
-      ])
+    async function loadData() {
+      const allSessions = await db.sessions
+        .where('user_id').equals(userId)
+        .filter(s => s.is_complete)
+        .toArray()
 
-      const completed = sortSessionsDesc(allSessions.filter(s => s.is_complete))
+      // Fetch exercises for both formats to get counts
+      const sorted = sortSessionsDesc(allSessions).slice(0, 5)
+      
+      const enriched = await Promise.all(sorted.map(async s => {
+        // New format count
+        const weCount = await db.workoutExercises
+          .where('session_id').equals(s.id)
+          .count()
+          
+        // Old format count
+        const lrCount = await db.liftResults
+          .where('session_id').equals(s.id)
+          .count()
+          
+        return {
+          ...s,
+          exerciseCount: weCount + lrCount
+        }
+      }))
 
-      const type = nextWorkoutType(completed[0] ?? null)
-      setNextType(type)
-      setLogType(type)
-
-      const exerciseMap = Object.fromEntries(exercises.map(e => [e.name, e]))
-      setLifts(WORKOUT_LIFTS[type].map(name => exerciseMap[name]).filter(Boolean))
-      setLoading(false)
+      setSessions(enriched)
     }
 
-    load()
-  }, [])
+    loadData()
+  }, [userId])
 
-  function openLogSheet() {
-    setLogDate(TODAY_ISO)
-    setShowLogSheet(true)
-  }
-
-  function startLoggedWorkout() {
-    setShowLogSheet(false)
-    navigate('/workout', { state: { prefill: { date: logDate, type: logType } } })
-  }
-
-  if (loading) {
-    return (
-      <div className="screen home-loading">
-        <span className="splash-title">JWO</span>
-      </div>
-    )
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    await db.delete()
+    navigate('/login')
   }
 
   return (
-    <div className="screen home-screen">
-      <header className="home-header">
-        <button className="workout-nav-btn" onClick={() => navigate('/dashboard')}>‹ Back</button>
-        <span className="home-logo">Lift</span>
-        <button className="home-settings-btn" onClick={() => navigate('/edit-weights')} aria-label="Edit weights">
-          ⚙
+    <div className="flex flex-col min-h-screen bg-gray-50">
+      <header className="flex justify-between items-center p-4 bg-white border-b">
+        <button onClick={() => navigate('/dashboard')} className="text-blue-600 font-medium">
+          ‹ Back
+        </button>
+        <h1 className="text-lg font-bold">Lift</h1>
+        <button onClick={handleSignOut} className="text-gray-500">
+          ⚙️
         </button>
       </header>
 
-      <section className="home-next">
-        <p className="home-next-label">Next up</p>
-        <h1 className="home-next-type">Workout {nextType}</h1>
-        <p className="home-next-date">{TODAY}</p>
-      </section>
-
-      <section className="home-lifts">
-        {lifts.map(ex => (
-          <div className="home-lift-row" key={ex.name}>
-            <span className="home-lift-name">{ex.name}</span>
-            <span className="home-lift-weight">{ex.weight_lbs} lbs</span>
-          </div>
-        ))}
-      </section>
-
-      <div className="home-cta">
-        <button className="btn-primary" onClick={() => navigate('/workout')}>
+      <main className="flex-1 p-4 overflow-y-auto">
+        <button
+          onClick={() => navigate('/workout')}
+          className="w-full py-4 mb-8 bg-blue-600 text-white rounded-lg font-bold text-lg shadow"
+        >
           Start Workout
         </button>
-        <button className="home-log-btn" onClick={openLogSheet}>
-          + Log past workout
-        </button>
-      </div>
 
-      <nav className="home-nav">
-        <button className="btn-ghost home-nav-btn" onClick={() => navigate('/history')}>
+        <h2 className="text-xl font-bold mb-4">Recent Workouts</h2>
+        <div className="space-y-3">
+          {sessions.length === 0 ? (
+            <p className="text-gray-500 italic">No recent workouts.</p>
+          ) : (
+            sessions.map(session => (
+              <div 
+                key={session.id}
+                onClick={() => navigate(`/session/${session.id}`)}
+                className="bg-white p-4 rounded-lg shadow-sm border cursor-pointer active:bg-gray-50"
+              >
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-semibold text-gray-800">
+                    {formatDate(session.date)}
+                  </span>
+                  <span className="text-sm text-gray-500">
+                    {session.exerciseCount} exercises
+                  </span>
+                </div>
+                {session.note && (
+                  <p className="text-sm text-gray-600 truncate">{session.note}</p>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </main>
+
+      <footer className="bg-white border-t p-2 flex gap-2">
+        <button 
+          onClick={() => navigate('/history')}
+          className="flex-1 py-3 text-center font-medium text-gray-700 bg-gray-100 rounded"
+        >
           History
         </button>
-        <button className="btn-ghost home-nav-btn" onClick={() => navigate('/progress')}>
+        <button 
+          onClick={() => navigate('/progress')}
+          className="flex-1 py-3 text-center font-medium text-gray-700 bg-gray-100 rounded"
+        >
           Progress
         </button>
-      </nav>
-
-      {showLogSheet && (
-        <Sheet title="Log Past Workout" onCancel={() => setShowLogSheet(false)}>
-          <div className="log-sheet-field">
-            <label className="detail-field-label">Date</label>
-            <input
-              type="date"
-              max={TODAY_ISO}
-              value={logDate}
-              onChange={e => setLogDate(e.target.value)}
-            />
-          </div>
-          <div className="log-sheet-field">
-            <label className="detail-field-label">Workout type</label>
-            <div className="streak-btns">
-              {['Push', 'Pull', 'Legs'].map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  className={`streak-btn ${logType === t ? 'streak-btn--active' : ''}`}
-                  style={{ minWidth: 64 }}
-                  onClick={() => setLogType(t)}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-          <button
-            className="btn-primary"
-            disabled={!logDate}
-            onClick={startLoggedWorkout}
-          >
-            Start
-          </button>
-        </Sheet>
-      )}
+      </footer>
     </div>
   )
 }

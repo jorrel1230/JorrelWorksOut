@@ -1,172 +1,170 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
-import { computeProgression } from '../lib/progression'
-import { WORKOUT_LIFTS, nextWorkoutType, formatDate } from '../lib/workout'
-import { pushSession } from '../lib/sync'
+import { pushWorkout } from '../lib/sync'
+import { formatDate } from '../lib/workout'
 
 export default function SessionSummary() {
   const navigate = useNavigate()
   const { state } = useLocation()
-  const savedRef = useRef(false)
+  const [userId, setUserId] = useState(null)
   const [saving, setSaving] = useState(true)
-
-  const hasWorkoutData = Boolean(state?.results)
-  const type = state?.type ?? 'Push'
-  const date = state?.date ?? new Date().toISOString().split('T')[0]
-  const note = state?.note ?? ''
-  const results = useMemo(() => state?.results ?? [], [state?.results])
-  const allExercises = useMemo(() => state?.allExercises ?? [], [state?.allExercises])
-
-  const exMap = useMemo(
-    () => Object.fromEntries(allExercises.map(e => [e.name, e])),
-    [allExercises],
+  const savedRef = useRef(false)
+  const [durationSeconds] = useState(() =>
+    state?.startTime ? Math.floor((Date.now() - new Date(state.startTime).getTime()) / 1000) : null
   )
 
-  const progressions = useMemo(() => results.map(r => {
-    const prog = computeProgression(r.weightLbs, r.failureStreak, r.failed)
-    return { ...r, ...prog }
-  }), [results])
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUserId(session.user.id)
+      } else {
+        navigate('/login', { replace: true })
+      }
+    })
+  }, [navigate])
 
-  const updatedExMap = useMemo(() => {
-    const map = { ...exMap }
-    for (const p of progressions) {
-      if (map[p.exerciseName]) {
-        map[p.exerciseName] = {
-          ...map[p.exerciseName],
-          weight_lbs: p.newWeight,
-          failure_streak: p.newStreak,
+  const saveWorkout = useCallback(async () => {
+    if (!state || !userId || savedRef.current) return
+    savedRef.current = true
+    setSaving(true)
+
+    try {
+      const sessionId = crypto.randomUUID()
+      const now = new Date().toISOString()
+
+      await db.sessions.put({
+        id: sessionId,
+        user_id: userId,
+        date: state.date,
+        type: '',
+        is_complete: true,
+        note: state.note || null,
+        duration_seconds: durationSeconds,
+        created_at: now,
+      })
+
+      const weRecords = []
+      const setRecords = []
+
+      for (let pos = 0; pos < state.exercises.length; pos++) {
+        const ex = state.exercises[pos]
+        const weId = crypto.randomUUID()
+        weRecords.push({
+          id: weId,
+          session_id: sessionId,
+          exercise_name: ex.name,
+          position: pos,
+          notes: '',
+        })
+        
+        for (let si = 0; si < ex.sets.length; si++) {
+          const set = ex.sets[si]
+          setRecords.push({
+            id: crypto.randomUUID(),
+            workout_exercise_id: weId,
+            set_number: si + 1,
+            weight_lbs: set.weight,
+            reps: set.reps || 0,
+            is_completed: set.completed,
+            is_warmup: false,
+          })
         }
       }
+
+      await db.workoutExercises.bulkPut(weRecords)
+      await db.liftingSets.bulkPut(setRecords)
+
+      await pushWorkout({
+        userId,
+        session: { id: sessionId, date: state.date, type: '', is_complete: true, note: state.note || null, duration_seconds: durationSeconds, created_at: now },
+        workoutExercises: weRecords,
+        liftingSets: setRecords,
+      })
+    } catch (err) {
+      console.error('Error saving workout:', err)
+    } finally {
+      setSaving(false)
     }
-    return map
-  }, [exMap, progressions])
-
-  const nextType = nextWorkoutType({ type })
-  const nextLifts = (WORKOUT_LIFTS[nextType] ?? []).map(name => ({
-    name,
-    weight_lbs: updatedExMap[name]?.weight_lbs ?? '—',
-  }))
-
-  const persist = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
-    const userId = session.user.id
-    const now = new Date().toISOString()
-    const sessionId = crypto.randomUUID()
-
-    for (const p of progressions) {
-      const ex = exMap[p.exerciseName]
-      if (ex) {
-        await db.exercises.update(ex.id, {
-          weight_lbs: p.newWeight,
-          failure_streak: p.newStreak,
-          updated_at: now,
-        })
-      }
-    }
-
-    await db.sessions.put({
-      id: sessionId,
-      user_id: userId,
-      date,
-      type,
-      is_complete: true,
-      note: note || null,
-      created_at: now,
-    })
-
-    const liftResults = results.map(r => ({
-      id: crypto.randomUUID(),
-      session_id: sessionId,
-      exercise_name: r.exerciseName,
-      weight_lbs: r.weightLbs,
-      sets_required: r.setsRequired,
-      target_reps: r.targetReps,
-      sets_completed: r.setsCompleted,
-      partial_reps: r.partialReps,
-      failed: r.failed,
-    }))
-    await db.liftResults.bulkPut(liftResults)
-
-    const updatedExercises = progressions.map(p => {
-      const ex = exMap[p.exerciseName]
-      return { ...ex, weight_lbs: p.newWeight, failure_streak: p.newStreak, updated_at: now }
-    })
-
-    await pushSession({
-      userId,
-      session: { id: sessionId, date, type, is_complete: true, note: note || null, created_at: now },
-      liftResults,
-      updatedExercises,
-    })
-  }, [date, exMap, note, progressions, results, type])
+  }, [state, userId, durationSeconds])
 
   useEffect(() => {
-    if (!hasWorkoutData) {
+    if (!state) {
       navigate('/home', { replace: true })
       return
     }
-    if (savedRef.current) return
-    savedRef.current = true
-    persist().finally(() => setSaving(false))
-  }, [hasWorkoutData, navigate, persist])
+    
+    if (userId) {
+      saveWorkout()
+    }
+  }, [state, userId, navigate, saveWorkout])
 
-  if (!hasWorkoutData) return null
+  if (!state) return null
+
+  const formatDuration = (seconds) => {
+    if (!seconds) return '--'
+    const h = Math.floor(seconds / 3600)
+    const m = Math.floor((seconds % 3600) / 60)
+    if (h > 0) return `${h}h ${m}m`
+    return `${m}m`
+  }
 
   return (
-    <div className="screen summary-screen">
-      <div className="summary-header">
-        <h1 className="summary-title">Workout {type} Complete</h1>
-        <p className="summary-date">{formatDate(date)}</p>
-      </div>
-
-      <div className="summary-lifts">
-        {progressions.map(p => (
-          <div className="summary-lift-row" key={p.exerciseName}>
-            <div className="summary-lift-info">
-              <div className="summary-lift-name">{p.exerciseName}</div>
-              <div className="summary-lift-detail">
-                {p.setsCompleted}/{p.setsRequired} sets · target {p.targetReps} · {p.weightLbs} lbs
-              </div>
-              {p.deloaded && (
-                <div className="summary-deload">
-                  Deload → {p.newWeight} lbs next session
-                </div>
-              )}
-            </div>
-            <span className={`summary-badge ${p.failed ? 'summary-badge--fail' : 'summary-badge--success'}`}>
-              {p.failed ? '✗ Failed' : '✓ Done'}
-            </span>
+    <div className="flex flex-col min-h-screen bg-gray-50 p-4">
+      <div className="flex-1 max-w-md mx-auto w-full">
+        <div className="text-center mb-8 pt-8">
+          <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+            ✓
           </div>
-        ))}
-      </div>
-
-      {note ? (
-        <div className="summary-note">
-          <p className="summary-note-label">Note</p>
-          <p className="summary-note-body">{note}</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Workout Complete!</h1>
+          <p className="text-gray-500">{formatDate(state.date)}</p>
+          {durationSeconds && (
+            <p className="text-sm font-medium text-gray-700 mt-2">
+              Duration: {formatDuration(durationSeconds)}
+            </p>
+          )}
         </div>
-      ) : null}
 
-      <div className="summary-next">
-        <p className="summary-next-title">Next up — Workout {nextType}</p>
-        {nextLifts.map(l => (
-          <div className="summary-next-row" key={l.name}>
-            <span className="summary-next-name">{l.name}</span>
-            <span className="summary-next-weight">{l.weight_lbs} lbs</span>
+        <div className="bg-white rounded-lg shadow border p-4 mb-6">
+          <h2 className="font-bold text-lg mb-4 border-b pb-2">Summary</h2>
+          
+          <div className="space-y-4">
+            {state.exercises.map((ex, i) => {
+              const completedSets = ex.sets.filter(s => s.completed)
+              return (
+                <div key={i} className="flex justify-between items-start">
+                  <div>
+                    <div className="font-medium">{ex.name}</div>
+                    <div className="text-sm text-gray-500">
+                      {completedSets.length} / {ex.sets.length} sets completed
+                    </div>
+                  </div>
+                  <div className="text-right text-sm text-gray-600">
+                    {completedSets.map((s, si) => (
+                      <div key={si}>{s.weight}lbs × {s.reps}</div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
           </div>
-        ))}
-      </div>
+        </div>
+        
+        {state.note && (
+          <div className="bg-white rounded-lg shadow border p-4 mb-6 text-sm text-gray-700">
+            <strong>Notes:</strong> {state.note}
+          </div>
+        )}
 
-      <button
-        className="btn-primary"
-        disabled={saving}
-        onClick={() => navigate('/home', { replace: true })}
-      >
-        {saving ? 'Saving…' : 'Done'}
-      </button>
+        <button
+          onClick={() => navigate('/home', { replace: true })}
+          disabled={saving}
+          className="w-full py-4 bg-blue-600 text-white rounded-lg font-bold text-lg disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : 'Done'}
+        </button>
+      </div>
     </div>
   )
 }

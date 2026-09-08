@@ -1,310 +1,344 @@
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
-import { db } from '../lib/db'
-import { WORKOUT_LIFTS, nextWorkoutType, sortSessionsDesc } from '../lib/workout'
-import LiftCard from '../components/LiftCard'
-import RestTimer from '../components/RestTimer'
-
-// ── Inline sheets ────────────────────────────────────────────────────────────
-
-function Sheet({ title, body, confirmLabel, onConfirm, onCancel }) {
-  return (
-    <div className="sheet-overlay" onClick={onCancel}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
-        <h3 className="sheet-title">{title}</h3>
-        {body && <p className="sheet-body">{body}</p>}
-        <button className="btn-primary" onClick={onConfirm}>{confirmLabel}</button>
-        <button className="btn-ghost" onClick={onCancel}>Cancel</button>
-      </div>
-    </div>
-  )
-}
-
-function RepPickerSheet({ onSelect, onCancel }) {
-  return (
-    <div className="sheet-overlay" onClick={onCancel}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
-        <h3 className="sheet-title">Reps completed</h3>
-        <div className="rep-grid">
-          {Array.from({ length: 15 }, (_, i) => i + 1).map(n => (
-            <button key={n} className="rep-btn" type="button" onClick={() => onSelect(n)}>
-              {n}
-            </button>
-          ))}
-        </div>
-        <button className="btn-ghost" onClick={onCancel}>Cancel</button>
-      </div>
-    </div>
-  )
-}
-
-function WeightEditSheet({ liftName, value, onChange, onConfirm, onCancel }) {
-  return (
-    <div className="sheet-overlay" onClick={onCancel}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
-        <h3 className="sheet-title">{liftName}</h3>
-        <div className="weight-edit-row">
-          <input
-            type="number"
-            min="0"
-            step="2.5"
-            value={value}
-            onChange={e => onChange(e.target.value)}
-            autoFocus
-          />
-          <span className="sheet-unit">lbs</span>
-        </div>
-        <button className="btn-primary" onClick={onConfirm}>Done</button>
-        <button className="btn-ghost" onClick={onCancel}>Cancel</button>
-      </div>
-    </div>
-  )
-}
-
-function NoteSheet({ value, onChange, onClose }) {
-  return (
-    <div className="sheet-overlay" onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
-        <h3 className="sheet-title">Note</h3>
-        <textarea
-          className="note-textarea"
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder="How did it feel?"
-          rows={4}
-          autoFocus
-        />
-        <button className="btn-primary" onClick={onClose}>Done</button>
-      </div>
-    </div>
-  )
-}
-
-// ── Main screen ──────────────────────────────────────────────────────────────
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { getExerciseNames, getLastWeight } from '../lib/exercises';
+import Sheet from '../components/Sheet';
+import SetCircle from '../components/SetCircle';
+import RestTimer from '../components/RestTimer';
 
 export default function ActiveWorkout() {
-  const navigate = useNavigate()
-  const { state } = useLocation()
-  const prefill = state?.prefill ?? null
-  const [loading, setLoading] = useState(true)
-  const [workoutType, setWorkoutType] = useState('A')
-  const [liftStates, setLiftStates] = useState([])
-  const [lastSetTime, setLastSetTime] = useState(null)
-  const [note, setNote] = useState('')
+  const navigate = useNavigate();
+  
+  const [userId, setUserId] = useState(null);
+  const [exercises, setExercises] = useState([]);
+  const [showExercisePicker, setShowExercisePicker] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [exerciseLibrary, setExerciseLibrary] = useState([]);
+  
+  const [startTime] = useState(() => new Date());
+  const [elapsed, setElapsed] = useState(0);
+  const [lastSetTime, setLastSetTime] = useState(null);
+  
+  const [note, setNote] = useState('');
+  const [showNoteSheet, setShowNoteSheet] = useState(false);
+  const [noteInput, setNoteInput] = useState('');
 
-  // sheet visibility
-  const [showBackConfirm, setShowBackConfirm] = useState(false)
-  const [showFinishConfirm, setShowFinishConfirm] = useState(false)
-  const [showNoteSheet, setShowNoteSheet] = useState(false)
-  const [pickerTarget, setPickerTarget] = useState(null)   // { liftIdx, setIdx }
-  const [editWeightIdx, setEditWeightIdx] = useState(null)
-  const [weightInput, setWeightInput] = useState('')
-  const allExercisesRef = useRef([])
+  const [showWeightEdit, setShowWeightEdit] = useState(null);
+  const [editWeightInput, setEditWeightInput] = useState('');
+
+  const [showCustomRepSheet, setShowCustomRepSheet] = useState(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+  const [exerciseToRemove, setExerciseToRemove] = useState(null);
 
   useEffect(() => {
-    async function load() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUserId(session.user.id);
+        getExerciseNames(session.user.id).then(setExerciseLibrary);
+      }
+    });
 
-      const userId = session.user.id
-      const [exercises, allSessions] = await Promise.all([
-        db.exercises.where('user_id').equals(userId).toArray(),
-        db.sessions.where('user_id').equals(userId).toArray(),
-      ])
+    const timer = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startTime.getTime()) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [startTime]);
 
-      allExercisesRef.current = exercises
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
 
-      const completed = sortSessionsDesc(allSessions.filter(s => s.is_complete))
+  const handleAddExercise = async (name) => {
+    const weight = userId ? await getLastWeight(userId, name) : null;
+    const initialWeight = weight !== null ? weight : 45;
+    
+    const newExercise = {
+      tempId: crypto.randomUUID(),
+      name,
+      weightLbs: initialWeight,
+      sets: [
+        { tempId: crypto.randomUUID(), weight: initialWeight, reps: 8, completed: false },
+        { tempId: crypto.randomUUID(), weight: initialWeight, reps: 8, completed: false },
+        { tempId: crypto.randomUUID(), weight: initialWeight, reps: 8, completed: false },
+      ]
+    };
+    setExercises(prev => [...prev, newExercise]);
+    setShowExercisePicker(false);
+    setSearchQuery('');
+  };
 
-      const type = prefill?.type ?? nextWorkoutType(completed[0] ?? null)
-      setWorkoutType(type)
+  const filteredLibrary = exerciseLibrary.filter(name => name.toLowerCase().includes(searchQuery.toLowerCase()));
 
-      const exMap = Object.fromEntries(exercises.map(e => [e.name, e]))
-      setLiftStates(
-        WORKOUT_LIFTS[type].map(name => {
-          const ex = exMap[name] ?? {}
-          const setsRequired = ex.sets_required ?? 3
-          return {
-            name,
-            weightLbs: ex.weight_lbs ?? 45,
-            setsRequired,
-            targetReps: ex.target_reps ?? 8,
-            failureStreak: ex.failure_streak ?? 0,
-            sets: Array(setsRequired).fill(null),
+  const toggleSet = (exerciseId, setId, customReps = null) => {
+    let justCompleted = false;
+    setExercises(prev => prev.map(ex => {
+      if (ex.tempId !== exerciseId) return ex;
+      return {
+        ...ex,
+        sets: ex.sets.map(s => {
+          if (s.tempId === setId) {
+            const isCompleting = !s.completed;
+            if (isCompleting) justCompleted = true;
+            return { ...s, reps: customReps !== null ? customReps : s.reps, completed: isCompleting };
           }
+          return s;
         })
-      )
-      setLoading(false)
+      };
+    }));
+    if (justCompleted) {
+      setLastSetTime(new Date());
     }
-    load()
-  }, [prefill?.type])
+  };
 
-  function handleSetTap(liftIdx, setIdx) {
-    const completing = liftStates[liftIdx].sets[setIdx] === null
-    setLiftStates(prev =>
-      prev.map((lift, li) => {
-        if (li !== liftIdx) return lift
-        const sets = [...lift.sets]
-        sets[setIdx] = completing ? lift.targetReps : null
-        return { ...lift, sets }
-      })
-    )
-    if (completing) setLastSetTime(new Date())
-  }
-
-  function handlePlus(liftIdx) {
-    const nextIdx = liftStates[liftIdx].sets.findIndex(s => s === null)
-    if (nextIdx === -1) return
-    setPickerTarget({ liftIdx, setIdx: nextIdx })
-  }
-
-  function handleRepSelect(reps) {
-    const { liftIdx, setIdx } = pickerTarget
-    setLiftStates(prev =>
-      prev.map((lift, li) => {
-        if (li !== liftIdx) return lift
-        const sets = [...lift.sets]
-        sets[setIdx] = reps
-        return { ...lift, sets }
-      })
-    )
-    setPickerTarget(null)
-    setLastSetTime(new Date())
-  }
-
-  function handleEditWeight(liftIdx) {
-    setEditWeightIdx(liftIdx)
-    setWeightInput(String(liftStates[liftIdx].weightLbs))
-  }
-
-  function confirmWeightEdit() {
-    const val = parseFloat(weightInput)
-    if (!isNaN(val) && val > 0) {
-      setLiftStates(prev =>
-        prev.map((lift, li) => li === editWeightIdx ? { ...lift, weightLbs: val } : lift)
-      )
+  const handleCustomRep = (reps) => {
+    if (!showCustomRepSheet) return;
+    const ex = exercises.find(e => e.tempId === showCustomRepSheet);
+    const nextSet = ex?.sets.find(s => !s.completed);
+    if (nextSet) {
+      toggleSet(ex.tempId, nextSet.tempId, reps);
     }
-    setEditWeightIdx(null)
-  }
+    setShowCustomRepSheet(null);
+  };
 
-  function handleFinishPress() {
-    const hasUntouched = liftStates.some(lift => lift.sets.every(s => s === null))
-    hasUntouched ? setShowFinishConfirm(true) : doFinish()
-  }
+  const handleSaveWeight = () => {
+    const newWeight = parseInt(editWeightInput, 10);
+    if (isNaN(newWeight) || !showWeightEdit) return;
 
-  function doFinish() {
-    const results = liftStates.map(lift => ({
-      exerciseName: lift.name,
-      weightLbs: lift.weightLbs,
-      setsRequired: lift.setsRequired,
-      failureStreak: lift.failureStreak,
-      targetReps: lift.targetReps,
-      setsCompleted: lift.sets.filter(s => s !== null).length,
-      partialReps: lift.sets.map(s => s ?? 0),
-      failed: lift.sets.filter(s => s !== null).length < lift.setsRequired,
-    }))
+    setExercises(prev => prev.map(ex => {
+      if (ex.tempId !== showWeightEdit) return ex;
+      return {
+        ...ex,
+        weightLbs: newWeight,
+        sets: ex.sets.map(s => s.completed ? s : { ...s, weight: newWeight })
+      };
+    }));
+    setShowWeightEdit(null);
+  };
 
+  const executeFinish = () => {
     navigate('/summary', {
       state: {
-        type: workoutType,
-        date: prefill?.date ?? new Date().toISOString().split('T')[0],
+        date: new Date().toISOString().split('T')[0],
         note,
-        allExercises: allExercisesRef.current,
-        results,
-      },
-    })
-  }
+        startTime,
+        exercises: exercises.map(ex => ({
+          name: ex.name,
+          sets: ex.sets.map(s => ({
+            weight: s.weight,
+            reps: s.reps,
+            completed: s.completed
+          }))
+        }))
+      }
+    });
+  };
 
-  if (loading) {
-    return (
-      <div className="screen" style={{ justifyContent: 'center', alignItems: 'center' }}>
-        <span className="splash-title">JWO</span>
-      </div>
-    )
-  }
+  const handleFinishClick = () => {
+    const hasIncomplete = exercises.some(ex => ex.sets.some(s => !s.completed));
+    if (hasIncomplete) {
+      setShowFinishConfirm(true);
+    } else {
+      executeFinish();
+    }
+  };
 
   return (
-    <div className="screen workout-screen">
-      <nav className="workout-nav">
-        <button className="workout-nav-btn" type="button" onClick={() => setShowBackConfirm(true)}>
-          ‹ Back
-        </button>
-        <span className="workout-nav-title">Workout {workoutType}</span>
-        <button className="workout-nav-btn" type="button" onClick={handleFinishPress}>
-          Finish
-        </button>
+    <div className="active-workout">
+      <nav className="nav-bar">
+        <button onClick={() => setShowCancelConfirm(true)}>Back</button>
+        <h2>{formatTime(elapsed)}</h2>
+        <button onClick={handleFinishClick}>Finish</button>
       </nav>
 
-      <div className="workout-lifts">
-        {liftStates.map((lift, li) => (
-          <LiftCard
-            key={lift.name}
-            lift={lift}
-            liftIdx={li}
-            onSetTap={handleSetTap}
-            onPlus={handlePlus}
-            onEditWeight={handleEditWeight}
-          />
-        ))}
+      <div className="exercises-container">
+        {exercises.length === 0 ? (
+          <div className="empty-state">
+            <p>Workout started. Add an exercise to begin.</p>
+          </div>
+        ) : (
+          exercises.map(ex => (
+            <div key={ex.tempId} className="exercise-card">
+              <div className="exercise-header">
+                <h3>{ex.name}</h3>
+                <div>
+                  <span 
+                    className="weight-display" 
+                    onClick={() => {
+                      setEditWeightInput(ex.weightLbs.toString());
+                      setShowWeightEdit(ex.tempId);
+                    }}
+                  >
+                    {ex.weightLbs} lbs
+                  </span>
+                  <button onClick={() => setExerciseToRemove(ex.tempId)}>×</button>
+                </div>
+              </div>
+              
+              <div className="sets-row">
+                {ex.sets.map(s => (
+                  <SetCircle 
+                    key={s.tempId} 
+                    reps={s.completed ? s.reps : null}
+                    onTap={() => toggleSet(ex.tempId, s.tempId, 8)} 
+                  />
+                ))}
+                <button 
+                  className="add-rep-btn"
+                  onClick={() => setShowCustomRepSheet(ex.tempId)}
+                  disabled={!ex.sets.some(s => !s.completed)}
+                >
+                  +
+                </button>
+              </div>
+              
+              <button 
+                className="add-set-btn"
+                onClick={() => {
+                  setExercises(prev => prev.map(e => {
+                    if (e.tempId !== ex.tempId) return e;
+                    return {
+                      ...e,
+                      sets: [...e.sets, { tempId: crypto.randomUUID(), weight: e.weightLbs, reps: 8, completed: false }]
+                    };
+                  }));
+                }}
+              >
+                Add Set
+              </button>
+            </div>
+          ))
+        )}
       </div>
 
-      <div className="workout-footer">
-        <button
-          className="workout-footer-btn"
-          type="button"
-          onClick={() => setShowNoteSheet(true)}
-        >
-          {note ? 'Edit note' : 'Note'}
+      <div className="footer-actions">
+        <button className="add-exercise-btn" onClick={() => setShowExercisePicker(true)}>
+          Add Exercise
+        </button>
+        <button className="note-btn" onClick={() => {
+          setNoteInput(note);
+          setShowNoteSheet(true);
+        }}>
+          Note
         </button>
       </div>
 
-      <RestTimer triggerTime={lastSetTime} onDismiss={() => setLastSetTime(null)} />
+      {lastSetTime && (
+        <RestTimer triggerTime={lastSetTime} onDismiss={() => setLastSetTime(null)} />
+      )}
 
-      {showBackConfirm && (
+      {/* Exercise Picker Sheet */}
+      {showExercisePicker && (
         <Sheet
-          title="Discard workout?"
-          body="Your progress won't be saved."
+          title="Add Exercise"
+          onCancel={() => setShowExercisePicker(false)}
+        >
+          <input 
+            type="text" 
+            placeholder="Search exercises..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <ul className="exercise-list">
+            {filteredLibrary.map(name => (
+              <li key={name} onClick={() => handleAddExercise(name)}>{name}</li>
+            ))}
+            {searchQuery && !filteredLibrary.includes(searchQuery) && (
+              <li className="create-new" onClick={() => handleAddExercise(searchQuery)}>
+                Create New: "{searchQuery}"
+              </li>
+            )}
+          </ul>
+        </Sheet>
+      )}
+
+      {/* Weight Edit Sheet */}
+      {showWeightEdit && (
+        <Sheet
+          title="Edit Weight"
+          confirmLabel="Done"
+          onConfirm={handleSaveWeight}
+          onCancel={() => setShowWeightEdit(null)}
+        >
+          <input 
+            type="number" 
+            value={editWeightInput}
+            onChange={(e) => setEditWeightInput(e.target.value)}
+          />
+        </Sheet>
+      )}
+
+      {/* Custom Reps Sheet */}
+      {showCustomRepSheet && (
+        <Sheet
+          title="Log Partial Reps"
+          onCancel={() => setShowCustomRepSheet(null)}
+        >
+          <div className="rep-grid">
+            {Array.from({ length: 15 }, (_, i) => i + 1).map(reps => (
+              <button key={reps} onClick={() => handleCustomRep(reps)}>{reps}</button>
+            ))}
+          </div>
+        </Sheet>
+      )}
+
+      {/* Note Sheet */}
+      {showNoteSheet && (
+        <Sheet
+          title="Workout Note"
+          confirmLabel="Save"
+          onConfirm={() => {
+            setNote(noteInput);
+            setShowNoteSheet(false);
+          }}
+          onCancel={() => setShowNoteSheet(false)}
+        >
+          <textarea 
+            value={noteInput}
+            onChange={(e) => setNoteInput(e.target.value)}
+            rows={4}
+          />
+        </Sheet>
+      )}
+
+      {/* Confirmation Sheets */}
+      {showCancelConfirm && (
+        <Sheet
+          title="Discard Workout?"
           confirmLabel="Discard"
-          onConfirm={() => navigate('/home')}
-          onCancel={() => setShowBackConfirm(false)}
-        />
+          onConfirm={() => navigate(-1)}
+          onCancel={() => setShowCancelConfirm(false)}
+        >
+          <p>Are you sure you want to discard this workout?</p>
+        </Sheet>
       )}
 
       {showFinishConfirm && (
         <Sheet
-          title="Not all sets completed"
-          body="Some lifts haven't been touched. Finish anyway?"
-          confirmLabel="Finish anyway"
-          onConfirm={() => { setShowFinishConfirm(false); doFinish() }}
+          title="Incomplete Sets"
+          confirmLabel="Finish Anyway"
+          onConfirm={executeFinish}
           onCancel={() => setShowFinishConfirm(false)}
-        />
+        >
+          <p>You have incomplete sets. Are you sure you want to finish?</p>
+        </Sheet>
       )}
 
-      {pickerTarget && (
-        <RepPickerSheet
-          onSelect={handleRepSelect}
-          onCancel={() => setPickerTarget(null)}
-        />
-      )}
-
-      {editWeightIdx !== null && (
-        <WeightEditSheet
-          liftName={liftStates[editWeightIdx].name}
-          value={weightInput}
-          onChange={setWeightInput}
-          onConfirm={confirmWeightEdit}
-          onCancel={() => setEditWeightIdx(null)}
-        />
-      )}
-
-      {showNoteSheet && (
-        <NoteSheet
-          value={note}
-          onChange={setNote}
-          onClose={() => setShowNoteSheet(false)}
-        />
+      {exerciseToRemove && (
+        <Sheet
+          title="Remove Exercise?"
+          confirmLabel="Remove"
+          onConfirm={() => {
+            setExercises(prev => prev.filter(e => e.tempId !== exerciseToRemove));
+            setExerciseToRemove(null);
+          }}
+          onCancel={() => setExerciseToRemove(null)}
+        >
+          <p>Remove this exercise from your workout?</p>
+        </Sheet>
       )}
     </div>
-  )
+  );
 }
