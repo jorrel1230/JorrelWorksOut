@@ -56,7 +56,9 @@ export default function EditWeights() {
 
     try {
       await supabase.from('exercises').upsert(updated)
-    } catch (_) {}
+    } catch (error) {
+      console.warn('Supabase exercise update failed', error)
+    }
 
     setSaving(false)
     navigate('/home')
@@ -65,7 +67,7 @@ export default function EditWeights() {
   if (loading) {
     return (
       <div className="screen" style={{ justifyContent: 'center', alignItems: 'center' }}>
-        <span className="splash-title">5×5</span>
+        <span className="splash-title">JWO</span>
       </div>
     )
   }

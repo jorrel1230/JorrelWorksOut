@@ -29,8 +29,9 @@ async function checkOnboarding(userId) {
     drainSyncQueue(userId).then(() => pullFromSupabase(userId)).catch(() => {})
     return true
   }
-  await drainSyncQueue(userId)
-  return pullFromSupabase(userId)
+
+  await drainSyncQueue(userId).catch(() => {})
+  return pullFromSupabase(userId).catch(() => false)
 }
 
 function Splash() {
@@ -47,8 +48,17 @@ function App() {
   const [onboarded, setOnboarded] = useState(null) // null = still checking
 
   useEffect(() => {
-    if (!session) { setOnboarded(null); return }
-    checkOnboarding(session.user.id).then(setOnboarded)
+    let cancelled = false
+    if (!session) {
+      Promise.resolve().then(() => {
+        if (!cancelled) setOnboarded(null)
+      })
+      return () => { cancelled = true }
+    }
+    checkOnboarding(session.user.id).then(value => {
+      if (!cancelled) setOnboarded(value)
+    })
+    return () => { cancelled = true }
   }, [session])
 
   if (authLoading || (session && onboarded === null)) return <Splash />

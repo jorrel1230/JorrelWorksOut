@@ -14,9 +14,9 @@ function setsToPartialReps(sets) {
   return sets.map(s => s ?? 0)
 }
 
-function recompute(sets, exerciseName) {
-  const req = SETS_REQUIRED(exerciseName)
-  const completed = sets.filter(s => s === 5).length
+function recompute(sets, lift) {
+  const req = lift.setsRequired ?? SETS_REQUIRED(lift.exerciseName)
+  const completed = sets.filter(s => s !== null).length
   return { sets_completed: completed, failed: completed < req, partial_reps: setsToPartialReps(sets) }
 }
 
@@ -62,6 +62,8 @@ export default function SessionDetail() {
     setEditLifts(results.map(r => ({
       exerciseName: r.exercise_name,
       weightLbs: r.weight_lbs,
+      setsRequired: r.sets_required ?? SETS_REQUIRED(r.exercise_name),
+      targetReps: r.target_reps ?? 8,
       sets: partialRepsToSets(r.partial_reps),
     })))
     setEditMode(true)
@@ -72,7 +74,7 @@ export default function SessionDetail() {
     setEditLifts(prev => prev.map((lift, li) => {
       if (li !== liftIdx) return lift
       const sets = [...lift.sets]
-      sets[setIdx] = completing ? 5 : null
+      sets[setIdx] = completing ? (lift.targetReps ?? 8) : null
       return { ...lift, sets }
     }))
   }
@@ -96,14 +98,13 @@ export default function SessionDetail() {
 
   async function handleSave() {
     setSaving(true)
-    const now = new Date().toISOString()
 
     const updatedSession = { ...session, date: editDate, note: editNote || null }
     await db.sessions.put(updatedSession)
 
     const updatedResults = editLifts.map((lift, i) => {
       const orig = results[i]
-      const { sets_completed, failed, partial_reps } = recompute(lift.sets, lift.exerciseName)
+      const { sets_completed, failed, partial_reps } = recompute(lift.sets, lift)
       return {
         ...orig,
         exercise_name: lift.exerciseName,
@@ -122,7 +123,9 @@ export default function SessionDetail() {
         await supabase.from('workout_sessions').upsert({ ...updatedSession, user_id: authSession.user.id })
         await supabase.from('lift_results').upsert(updatedResults)
       }
-    } catch (_) {}
+    } catch (error) {
+      console.warn('Supabase workout update failed', error)
+    }
 
     setSession(updatedSession)
     setResults(updatedResults)
@@ -136,7 +139,9 @@ export default function SessionDetail() {
 
     try {
       await supabase.from('workout_sessions').delete().eq('id', id)
-    } catch (_) {}
+    } catch (error) {
+      console.warn('Supabase workout delete failed', error)
+    }
 
     navigate('/history', { replace: true })
   }
@@ -178,7 +183,7 @@ export default function SessionDetail() {
                 <div className="detail-lift-info">
                   <span className="detail-lift-name">{r.exercise_name}</span>
                   <span className="detail-lift-meta">
-                    {r.sets_completed}/{SETS_REQUIRED(r.exercise_name)} sets · {r.weight_lbs} lbs
+                    {r.sets_completed}/{r.sets_required ?? SETS_REQUIRED(r.exercise_name)} sets · {r.weight_lbs} lbs
                   </span>
                 </div>
                 <span className={`summary-badge ${r.failed ? 'summary-badge--fail' : 'summary-badge--success'}`}>
@@ -289,7 +294,7 @@ export default function SessionDetail() {
       {pickerTarget && (
         <Sheet title="Reps completed" onCancel={() => setPickerTarget(null)}>
           <div className="rep-grid">
-            {[1, 2, 3, 4].map(n => (
+            {Array.from({ length: 15 }, (_, i) => i + 1).map(n => (
               <button key={n} className="rep-btn" onClick={() => handleRepSelect(n)}>{n}</button>
             ))}
           </div>

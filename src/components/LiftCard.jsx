@@ -2,7 +2,7 @@ import SetCircle from './SetCircle'
 
 export default function LiftCard({ lift, liftIdx, onSetTap, onPlus, onEditWeight }) {
   const allFilled = lift.sets.every(s => s !== null)
-  const label = lift.setsRequired === 1 ? '1×5' : '5×5'
+  const label = `${lift.setsRequired}×${lift.targetReps ?? 8}`
 
   return (
     <div className="lift-card">

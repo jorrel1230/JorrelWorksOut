@@ -3,11 +3,18 @@ import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
 
 const DEFAULTS = [
-  { name: 'Squat',          weight_lbs: 45, sets_required: 5 },
-  { name: 'Bench Press',    weight_lbs: 45, sets_required: 5 },
-  { name: 'Barbell Row',    weight_lbs: 65, sets_required: 5 },
-  { name: 'Overhead Press', weight_lbs: 45, sets_required: 5 },
-  { name: 'Deadlift',       weight_lbs: 95, sets_required: 1 },
+  { name: 'Bench Press', weight_lbs: 135, sets_required: 3, target_reps: 8 },
+  { name: 'Overhead Press', weight_lbs: 75, sets_required: 3, target_reps: 8 },
+  { name: 'Dumbbell Shoulder Press', weight_lbs: 25, sets_required: 3, target_reps: 10 },
+  { name: 'Triceps Pushdown', weight_lbs: 35, sets_required: 3, target_reps: 10 },
+  { name: 'Barbell Row', weight_lbs: 115, sets_required: 3, target_reps: 8 },
+  { name: 'Lat Pulldown', weight_lbs: 100, sets_required: 3, target_reps: 10 },
+  { name: 'Pullups', weight_lbs: 136, sets_required: 3, target_reps: 6 },
+  { name: 'Squat', weight_lbs: 140, sets_required: 3, target_reps: 8 },
+  { name: 'Deadlift', weight_lbs: 215, sets_required: 3, target_reps: 6 },
+  { name: 'Leg Curl', weight_lbs: 100, sets_required: 3, target_reps: 10 },
+  { name: 'Leg Extension', weight_lbs: 100, sets_required: 3, target_reps: 10 },
+  { name: 'Hip Abductor', weight_lbs: 87.5, sets_required: 3, target_reps: 12 },
 ]
 
 export default function Onboarding({ onComplete }) {
@@ -36,6 +43,7 @@ export default function Onboarding({ onComplete }) {
         name: ex.name,
         weight_lbs: parseFloat(weights[ex.name]) || ex.weight_lbs,
         sets_required: ex.sets_required,
+        target_reps: ex.target_reps,
         failure_streak: 0,
         updated_at: now,
       }))
@@ -45,10 +53,12 @@ export default function Onboarding({ onComplete }) {
       // best-effort push to Supabase; if offline, sync runs later
       try {
         await supabase.from('exercises').upsert(exercises)
-      } catch (_) {}
+      } catch (error) {
+        console.warn('Supabase onboarding seed failed', error)
+      }
 
       onComplete()
-    } catch (err) {
+    } catch {
       setError('Something went wrong. Please try again.')
       setLoading(false)
     }
@@ -58,7 +68,7 @@ export default function Onboarding({ onComplete }) {
     <div className="screen onboarding-screen">
       <div className="onboarding-inner">
         <div className="onboarding-header">
-          <span className="auth-logo">5×5</span>
+          <span className="auth-logo">JorrelWorksOut</span>
           <h1 className="onboarding-title">Set your starting weights</h1>
           <p className="onboarding-subtitle">You can change these any time</p>
         </div>
@@ -69,7 +79,7 @@ export default function Onboarding({ onComplete }) {
               <div className="onboarding-lift">
                 <span className="onboarding-lift-name">{ex.name}</span>
                 <span className="onboarding-lift-meta">
-                  {ex.sets_required === 1 ? '1×5' : '5×5'}
+                  {ex.sets_required}×{ex.target_reps}
                 </span>
               </div>
               <div className="onboarding-input-wrap">

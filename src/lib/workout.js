@@ -4,18 +4,48 @@ export const LIFT_ABBR = {
   'Barbell Row': 'ROW',
   'Overhead Press': 'OHP',
   'Deadlift': 'DL',
+  'Dumbbell Shoulder Press': 'DSP',
+  'Triceps Pushdown': 'TRI',
+  'Lat Pulldown': 'LAT',
+  'Pullups': 'PU',
+  'Leg Curl': 'LC',
+  'Leg Extension': 'LE',
+  'Hip Abductor': 'HIP',
 }
 
-export const SETS_REQUIRED = name => name === 'Deadlift' ? 1 : 5
+export const ALL_LIFTS = Object.keys(LIFT_ABBR)
+
+export const EXERCISE_DEFAULTS = {
+  'Squat': { setsRequired: 3, targetReps: 8 },
+  'Bench Press': { setsRequired: 3, targetReps: 8 },
+  'Barbell Row': { setsRequired: 3, targetReps: 8 },
+  'Overhead Press': { setsRequired: 3, targetReps: 8 },
+  'Deadlift': { setsRequired: 3, targetReps: 6 },
+  'Dumbbell Shoulder Press': { setsRequired: 3, targetReps: 10 },
+  'Triceps Pushdown': { setsRequired: 3, targetReps: 10 },
+  'Lat Pulldown': { setsRequired: 3, targetReps: 10 },
+  'Pullups': { setsRequired: 3, targetReps: 6 },
+  'Leg Curl': { setsRequired: 3, targetReps: 10 },
+  'Leg Extension': { setsRequired: 3, targetReps: 10 },
+  'Hip Abductor': { setsRequired: 3, targetReps: 12 },
+}
+
+export const SETS_REQUIRED = name => EXERCISE_DEFAULTS[name]?.setsRequired ?? 3
+export const TARGET_REPS = name => EXERCISE_DEFAULTS[name]?.targetReps ?? 8
 
 export const WORKOUT_LIFTS = {
-  A: ['Squat', 'Bench Press', 'Barbell Row'],
-  B: ['Squat', 'Overhead Press', 'Deadlift'],
+  Push: ['Bench Press', 'Overhead Press', 'Dumbbell Shoulder Press', 'Triceps Pushdown'],
+  Pull: ['Barbell Row', 'Lat Pulldown', 'Pullups'],
+  Legs: ['Squat', 'Deadlift', 'Leg Curl', 'Leg Extension', 'Hip Abductor'],
+  Imported: ALL_LIFTS,
 }
 
+export const WORKOUT_ORDER = ['Push', 'Pull', 'Legs']
+
 export function nextWorkoutType(lastSession) {
-  if (!lastSession) return 'A'
-  return lastSession.type === 'A' ? 'B' : 'A'
+  if (!lastSession || !WORKOUT_ORDER.includes(lastSession.type)) return 'Push'
+  const idx = WORKOUT_ORDER.indexOf(lastSession.type)
+  return WORKOUT_ORDER[(idx + 1) % WORKOUT_ORDER.length]
 }
 
 // Sort sessions newest-first, using created_at as tiebreaker for same-date sessions

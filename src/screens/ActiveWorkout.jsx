@@ -27,7 +27,7 @@ function RepPickerSheet({ onSelect, onCancel }) {
       <div className="sheet" onClick={e => e.stopPropagation()}>
         <h3 className="sheet-title">Reps completed</h3>
         <div className="rep-grid">
-          {[1, 2, 3, 4].map(n => (
+          {Array.from({ length: 15 }, (_, i) => i + 1).map(n => (
             <button key={n} className="rep-btn" type="button" onClick={() => onSelect(n)}>
               {n}
             </button>
@@ -123,20 +123,22 @@ export default function ActiveWorkout() {
       const exMap = Object.fromEntries(exercises.map(e => [e.name, e]))
       setLiftStates(
         WORKOUT_LIFTS[type].map(name => {
-          const ex = exMap[name]
+          const ex = exMap[name] ?? {}
+          const setsRequired = ex.sets_required ?? 3
           return {
             name,
-            weightLbs: ex.weight_lbs,
-            setsRequired: ex.sets_required,
-            failureStreak: ex.failure_streak,
-            sets: Array(ex.sets_required).fill(null),
+            weightLbs: ex.weight_lbs ?? 45,
+            setsRequired,
+            targetReps: ex.target_reps ?? 8,
+            failureStreak: ex.failure_streak ?? 0,
+            sets: Array(setsRequired).fill(null),
           }
         })
       )
       setLoading(false)
     }
     load()
-  }, [])
+  }, [prefill?.type])
 
   function handleSetTap(liftIdx, setIdx) {
     const completing = liftStates[liftIdx].sets[setIdx] === null
@@ -144,7 +146,7 @@ export default function ActiveWorkout() {
       prev.map((lift, li) => {
         if (li !== liftIdx) return lift
         const sets = [...lift.sets]
-        sets[setIdx] = completing ? 5 : null
+        sets[setIdx] = completing ? lift.targetReps : null
         return { ...lift, sets }
       })
     )
@@ -197,9 +199,10 @@ export default function ActiveWorkout() {
       weightLbs: lift.weightLbs,
       setsRequired: lift.setsRequired,
       failureStreak: lift.failureStreak,
-      setsCompleted: lift.sets.filter(s => s === 5).length,
+      targetReps: lift.targetReps,
+      setsCompleted: lift.sets.filter(s => s !== null).length,
       partialReps: lift.sets.map(s => s ?? 0),
-      failed: lift.sets.filter(s => s === 5).length < lift.setsRequired,
+      failed: lift.sets.filter(s => s !== null).length < lift.setsRequired,
     }))
 
     navigate('/summary', {
@@ -216,7 +219,7 @@ export default function ActiveWorkout() {
   if (loading) {
     return (
       <div className="screen" style={{ justifyContent: 'center', alignItems: 'center' }}>
-        <span className="splash-title">5×5</span>
+        <span className="splash-title">JWO</span>
       </div>
     )
   }

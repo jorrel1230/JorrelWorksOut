@@ -13,3 +13,7 @@ db.version(2).stores({
   runs:        'id, user_id, date',
   runSettings: 'id, user_id',
 })
+
+db.version(3).stores({
+  trainingPlans: 'id, user_id, title',
+})

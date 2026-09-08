@@ -1,7 +1,8 @@
-import { supabase } from './supabase'
+import { LOCAL_USER_ID, supabase } from './supabase'
 import { db } from './db'
 
 export async function pullFromSupabase(userId) {
+  if (userId === LOCAL_USER_ID) return false
   const [
     { data: exercises }, { data: sessions }, { data: liftResults },
     { data: runs }, { data: runSettings },
@@ -23,6 +24,7 @@ export async function pullFromSupabase(userId) {
 }
 
 export async function pushSession({ userId, session, liftResults, updatedExercises }) {
+  if (userId === LOCAL_USER_ID) return
   if (!navigator.onLine) {
     await enqueue('session', { session, liftResults, updatedExercises })
     return
@@ -36,6 +38,7 @@ export async function pushSession({ userId, session, liftResults, updatedExercis
 }
 
 export async function pushRun(userId, run) {
+  if (userId === LOCAL_USER_ID) return
   if (!navigator.onLine) {
     await enqueue('run', { userId, run })
     return
@@ -47,6 +50,7 @@ export async function pushRun(userId, run) {
 }
 
 export async function pushRunSettings(userId, settings) {
+  if (userId === LOCAL_USER_ID) return
   if (!navigator.onLine) {
     await enqueue('runSettings', { userId, settings })
     return
@@ -66,6 +70,7 @@ async function enqueue(entity, data) {
 }
 
 export async function drainSyncQueue(userId) {
+  if (userId === LOCAL_USER_ID) return
   const pending = await db.syncQueue.toArray()
   for (const item of pending) {
     try {
@@ -86,7 +91,7 @@ export async function drainSyncQueue(userId) {
       }
       if (failed) break
       await db.syncQueue.delete(item.id)
-    } catch (_) {
+    } catch {
       break
     }
   }

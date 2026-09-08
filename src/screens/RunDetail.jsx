@@ -124,7 +124,11 @@ export default function RunDetail() {
 
   async function handleDelete() {
     await db.runs.delete(id)
-    try { await supabase.from('runs').delete().eq('id', id) } catch (_) {}
+    try {
+      await supabase.from('runs').delete().eq('id', id)
+    } catch (error) {
+      console.warn('Supabase run delete failed', error)
+    }
     navigate('/run/history', { replace: true })
   }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
@@ -12,55 +12,50 @@ export default function SessionSummary() {
   const savedRef = useRef(false)
   const [saving, setSaving] = useState(true)
 
-  // Guard: navigated here directly without workout data
-  if (!state?.results) {
-    navigate('/home', { replace: true })
-    return null
-  }
+  const hasWorkoutData = Boolean(state?.results)
+  const type = state?.type ?? 'Push'
+  const date = state?.date ?? new Date().toISOString().split('T')[0]
+  const note = state?.note ?? ''
+  const results = useMemo(() => state?.results ?? [], [state?.results])
+  const allExercises = useMemo(() => state?.allExercises ?? [], [state?.allExercises])
 
-  const { type, date, note, results, allExercises } = state
+  const exMap = useMemo(
+    () => Object.fromEntries(allExercises.map(e => [e.name, e])),
+    [allExercises],
+  )
 
-  // Compute progression synchronously — pure functions, no I/O
-  const exMap = Object.fromEntries((allExercises ?? []).map(e => [e.name, e]))
-
-  const progressions = results.map(r => {
+  const progressions = useMemo(() => results.map(r => {
     const prog = computeProgression(r.weightLbs, r.failureStreak, r.failed)
     return { ...r, ...prog }
-  })
+  }), [results])
 
-  // Build updated exercise map for next-session display
-  const updatedExMap = { ...exMap }
-  for (const p of progressions) {
-    if (updatedExMap[p.exerciseName]) {
-      updatedExMap[p.exerciseName] = {
-        ...updatedExMap[p.exerciseName],
-        weight_lbs: p.newWeight,
-        failure_streak: p.newStreak,
+  const updatedExMap = useMemo(() => {
+    const map = { ...exMap }
+    for (const p of progressions) {
+      if (map[p.exerciseName]) {
+        map[p.exerciseName] = {
+          ...map[p.exerciseName],
+          weight_lbs: p.newWeight,
+          failure_streak: p.newStreak,
+        }
       }
     }
-  }
+    return map
+  }, [exMap, progressions])
 
   const nextType = nextWorkoutType({ type })
-  const nextLifts = WORKOUT_LIFTS[nextType].map(name => ({
+  const nextLifts = (WORKOUT_LIFTS[nextType] ?? []).map(name => ({
     name,
     weight_lbs: updatedExMap[name]?.weight_lbs ?? '—',
   }))
 
-  // Persist once on mount; keep Done disabled until write completes
-  useEffect(() => {
-    if (savedRef.current) return
-    savedRef.current = true
-    persist().finally(() => setSaving(false))
-  }, [])
-
-  async function persist() {
+  const persist = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
     const userId = session.user.id
     const now = new Date().toISOString()
     const sessionId = crypto.randomUUID()
 
-    // Update exercises in IndexedDB
     for (const p of progressions) {
       const ex = exMap[p.exerciseName]
       if (ex) {
@@ -72,7 +67,6 @@ export default function SessionSummary() {
       }
     }
 
-    // Save session
     await db.sessions.put({
       id: sessionId,
       user_id: userId,
@@ -83,19 +77,19 @@ export default function SessionSummary() {
       created_at: now,
     })
 
-    // Save lift results
     const liftResults = results.map(r => ({
       id: crypto.randomUUID(),
       session_id: sessionId,
       exercise_name: r.exerciseName,
       weight_lbs: r.weightLbs,
+      sets_required: r.setsRequired,
+      target_reps: r.targetReps,
       sets_completed: r.setsCompleted,
       partial_reps: r.partialReps,
       failed: r.failed,
     }))
     await db.liftResults.bulkPut(liftResults)
 
-    // Push to Supabase
     const updatedExercises = progressions.map(p => {
       const ex = exMap[p.exerciseName]
       return { ...ex, weight_lbs: p.newWeight, failure_streak: p.newStreak, updated_at: now }
@@ -107,7 +101,19 @@ export default function SessionSummary() {
       liftResults,
       updatedExercises,
     })
-  }
+  }, [date, exMap, note, progressions, results, type])
+
+  useEffect(() => {
+    if (!hasWorkoutData) {
+      navigate('/home', { replace: true })
+      return
+    }
+    if (savedRef.current) return
+    savedRef.current = true
+    persist().finally(() => setSaving(false))
+  }, [hasWorkoutData, navigate, persist])
+
+  if (!hasWorkoutData) return null
 
   return (
     <div className="screen summary-screen">
@@ -122,7 +128,7 @@ export default function SessionSummary() {
             <div className="summary-lift-info">
               <div className="summary-lift-name">{p.exerciseName}</div>
               <div className="summary-lift-detail">
-                {p.setsCompleted}/{p.setsRequired} sets · {p.weightLbs} lbs
+                {p.setsCompleted}/{p.setsRequired} sets · target {p.targetReps} · {p.weightLbs} lbs
               </div>
               {p.deloaded && (
                 <div className="summary-deload">

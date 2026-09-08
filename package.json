@@ -1,5 +1,5 @@
 {
-  "name": "sl5x5",
+  "name": "jorrel-works-out",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,7 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.107.0",
+    "@supabase/ssr": "^0.12.6",
+    "@supabase/supabase-js": "^2.116.0",
     "dexie": "^4.4.3",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",

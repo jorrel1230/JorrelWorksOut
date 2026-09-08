@@ -9,6 +9,10 @@ lerna-debug.log*
 
 node_modules
 dist
+backups
+supabase/.temp
+supabase/seed-historical.sql
+src/data/seedData.js
 dist-ssr
 *.local
 

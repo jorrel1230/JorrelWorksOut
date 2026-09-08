@@ -59,7 +59,7 @@ export default function Home() {
   if (loading) {
     return (
       <div className="screen home-loading">
-        <span className="splash-title">5×5</span>
+        <span className="splash-title">JWO</span>
       </div>
     )
   }
@@ -68,7 +68,7 @@ export default function Home() {
     <div className="screen home-screen">
       <header className="home-header">
         <button className="workout-nav-btn" onClick={() => navigate('/dashboard')}>‹ Back</button>
-        <span className="home-logo">5×5</span>
+        <span className="home-logo">Lift</span>
         <button className="home-settings-btn" onClick={() => navigate('/edit-weights')} aria-label="Edit weights">
           ⚙
         </button>
@@ -121,12 +121,12 @@ export default function Home() {
           <div className="log-sheet-field">
             <label className="detail-field-label">Workout type</label>
             <div className="streak-btns">
-              {['A', 'B'].map(t => (
+              {['Push', 'Pull', 'Legs'].map(t => (
                 <button
                   key={t}
                   type="button"
                   className={`streak-btn ${logType === t ? 'streak-btn--active' : ''}`}
-                  style={{ width: 56 }}
+                  style={{ minWidth: 64 }}
                   onClick={() => setLogType(t)}
                 >
                   {t}

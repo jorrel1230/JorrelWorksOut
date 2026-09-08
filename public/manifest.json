@@ -1,22 +1,29 @@
 {
   "name": "JorrelWorksOut",
-  "short_name": "JorrelWorksOut",
-  "description": "JorrelWorksOut workout tracker",
+  "short_name": "JWO",
+  "description": "Local-first lifting and running tracker",
   "start_url": "/JorrelWorksOut/",
+  "scope": "/JorrelWorksOut/",
   "display": "standalone",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/icon.png",
+      "src": "/JorrelWorksOut/icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/icon.png",
+      "src": "/JorrelWorksOut/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "/JorrelWorksOut/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }

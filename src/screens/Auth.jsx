@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { enableLocalMode, supabase } from '../lib/supabase'
 
 export default function Auth() {
   const [email, setEmail] = useState('')
@@ -52,6 +52,12 @@ export default function Auth() {
           <button className="btn-ghost" disabled={loading || !ready} onClick={() => handle('signup')}>
             Create account
           </button>
+          <button className="btn-ghost" disabled={loading} onClick={enableLocalMode}>
+            Continue locally
+          </button>
+          <p className="auth-hint">
+            Local mode works offline on this phone. Supabase sign-in can be added once the cloud schema is applied.
+          </p>
         </div>
       </div>
     </div>

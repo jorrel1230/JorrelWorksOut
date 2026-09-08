@@ -2,13 +2,12 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { db } from '../lib/db'
-import { LIFT_ABBR } from '../lib/workout'
+import { ALL_LIFTS, LIFT_ABBR } from '../lib/workout'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip,
 } from 'recharts'
 
-const ALL_LIFTS = ['Squat', 'Bench Press', 'Barbell Row', 'Overhead Press', 'Deadlift']
 const RANGES = [
   { label: '30D', days: 30 },
   { label: '3M',  days: 90 },
@@ -122,7 +121,7 @@ export default function Progress() {
   if (loading) {
     return (
       <div className="screen" style={{ justifyContent: 'center', alignItems: 'center' }}>
-        <span className="splash-title">5×5</span>
+        <span className="splash-title">JWO</span>
       </div>
     )
   }

@@ -124,6 +124,14 @@
   text-align: center;
 }
 
+.auth-hint {
+  color: var(--text2);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: center;
+  margin: 0.25rem 0 0;
+}
+
 .auth-sent {
   text-align: center;
   display: flex;
