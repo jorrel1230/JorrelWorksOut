@@ -6,21 +6,42 @@ export async function pullFromSupabase(userId) {
   const [
     { data: exercises }, { data: sessions }, { data: liftResults },
     { data: runs }, { data: runSettings },
+    { data: workoutExercises }, { data: liftingSets },
   ] = await Promise.all([
     supabase.from('exercises').select('*').eq('user_id', userId),
     supabase.from('workout_sessions').select('*').eq('user_id', userId),
     supabase.from('lift_results').select('*'),
     supabase.from('runs').select('*').eq('user_id', userId),
     supabase.from('run_settings').select('*').eq('user_id', userId),
+    supabase.from('workout_exercises').select('*').eq('user_id', userId).then(r => r, () => ({ data: [] })),
+    supabase.from('lifting_sets').select('*').then(r => r, () => ({ data: [] })),
   ])
   await Promise.all([
-    exercises?.length   ? db.exercises.bulkPut(exercises)       : Promise.resolve(),
-    sessions?.length    ? db.sessions.bulkPut(sessions)         : Promise.resolve(),
-    liftResults?.length ? db.liftResults.bulkPut(liftResults)   : Promise.resolve(),
-    runs?.length        ? db.runs.bulkPut(runs)                 : Promise.resolve(),
-    runSettings?.length ? db.runSettings.bulkPut(runSettings)   : Promise.resolve(),
+    exercises?.length          ? db.exercises.bulkPut(exercises)               : Promise.resolve(),
+    sessions?.length           ? db.sessions.bulkPut(sessions)                : Promise.resolve(),
+    liftResults?.length        ? db.liftResults.bulkPut(liftResults)          : Promise.resolve(),
+    runs?.length               ? db.runs.bulkPut(runs)                        : Promise.resolve(),
+    runSettings?.length        ? db.runSettings.bulkPut(runSettings)          : Promise.resolve(),
+    workoutExercises?.length   ? db.workoutExercises.bulkPut(workoutExercises): Promise.resolve(),
+    liftingSets?.length        ? db.liftingSets.bulkPut(liftingSets)          : Promise.resolve(),
   ])
   return (exercises?.length ?? 0) > 0
+}
+
+export async function pushWorkout({ userId, session, workoutExercises, liftingSets }) {
+  if (userId === LOCAL_USER_ID) return
+  if (!navigator.onLine) {
+    await enqueue('workout', { session, workoutExercises, liftingSets })
+    return
+  }
+  const { error: e1 } = await supabase.from('workout_sessions').upsert({ ...session, user_id: userId })
+  const { error: e2 } = await supabase.from('workout_exercises').upsert(
+    workoutExercises.map(we => ({ ...we, user_id: userId }))
+  )
+  const { error: e3 } = await supabase.from('lifting_sets').upsert(liftingSets)
+  if (e1 || e2 || e3) {
+    await enqueue('workout', { session, workoutExercises, liftingSets })
+  }
 }
 
 export async function pushSession({ userId, session, liftResults, updatedExercises }) {
@@ -81,6 +102,14 @@ export async function drainSyncQueue(userId) {
         const { error: e1 } = await supabase.from('workout_sessions').upsert({ ...session, user_id: userId })
         const { error: e2 } = await supabase.from('lift_results').upsert(liftResults)
         const { error: e3 } = await supabase.from('exercises').upsert(updatedExercises)
+        if (e1 || e2 || e3) failed = true
+      } else if (item.entity === 'workout') {
+        const { session, workoutExercises, liftingSets } = data
+        const { error: e1 } = await supabase.from('workout_sessions').upsert({ ...session, user_id: userId })
+        const { error: e2 } = await supabase.from('workout_exercises').upsert(
+          workoutExercises.map(we => ({ ...we, user_id: userId }))
+        )
+        const { error: e3 } = await supabase.from('lifting_sets').upsert(liftingSets)
         if (e1 || e2 || e3) failed = true
       } else if (item.entity === 'run') {
         const { error } = await supabase.from('runs').upsert(data.run)

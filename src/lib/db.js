@@ -17,3 +17,8 @@ db.version(2).stores({
 db.version(3).stores({
   trainingPlans: 'id, user_id, title',
 })
+
+db.version(4).stores({
+  workoutExercises: 'id, session_id, exercise_name',
+  liftingSets:      'id, workout_exercise_id',
+})
