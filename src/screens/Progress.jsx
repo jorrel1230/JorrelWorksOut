@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { db } from '../lib/db'
-import { ALL_LIFTS, LIFT_ABBR } from '../lib/workout'
+import { getExerciseNames, getExerciseHistory } from '../lib/exercises'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip,
@@ -24,6 +23,7 @@ function cutoffDate(days) {
 }
 
 function formatXTick(dateStr) {
+  if (!dateStr) return ''
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
@@ -51,72 +51,53 @@ function TooltipContent({ active, payload, label }) {
   )
 }
 
+function getAbbr(name) {
+  if (name.length <= 6) return name
+  const words = name.split(' ')
+  if (words.length > 1) return words.map(w => w[0]).join('').toUpperCase()
+  return name.substring(0, 5).toUpperCase()
+}
+
 export default function Progress() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
-  const [activeLift, setActiveLift] = useState('Squat')
+  const [exercises, setExercises] = useState([])
+  const [activeLift, setActiveLift] = useState('')
   const [activeRange, setActiveRange] = useState('All')
-  const [chartData, setChartData] = useState({})
+  const [historyData, setHistoryData] = useState([])
 
   useEffect(() => {
-    async function load() {
+    async function loadNames() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
-
-      const [sessions, allResults] = await Promise.all([
-        db.sessions.where('user_id').equals(session.user.id).toArray(),
-        db.liftResults.toArray(),
-      ])
-
-      const completed = sessions
-        .filter(s => s.is_complete)
-        .sort((a, b) => {
-          if (a.date !== b.date) return a.date < b.date ? -1 : 1
-          return (a.created_at ?? '') < (b.created_at ?? '') ? -1 : 1
-        })
-
-      const sessionMap = Object.fromEntries(completed.map(s => [s.id, s]))
-
-      const byLift = Object.fromEntries(ALL_LIFTS.map(l => [l, []]))
-      for (const r of allResults) {
-        const sess = sessionMap[r.session_id]
-        if (sess && byLift[r.exercise_name]) {
-          byLift[r.exercise_name].push({
-            date: sess.date,
-            sessionOrder: sess.created_at ?? sess.date,
-            weight: r.weight_lbs,
-            failed: r.failed,
-          })
-        }
+      
+      const names = await getExerciseNames(session.user.id)
+      setExercises(names)
+      if (names.length > 0) {
+        setActiveLift(names[0])
       }
-
-      const data = {}
-      for (const lift of ALL_LIFTS) {
-        const sorted = byLift[lift].sort((a, b) => {
-          if (a.date !== b.date) return a.date < b.date ? -1 : 1
-          return a.sessionOrder < b.sessionOrder ? -1 : 1
-        })
-        data[lift] = sorted.map((pt, i) => ({
-          ...pt,
-          deloaded: i > 0 && pt.weight < sorted[i - 1].weight,
-        }))
-      }
-
-      setChartData(data)
       setLoading(false)
     }
-    load()
+    loadNames()
   }, [])
 
-  const rangeDef = RANGES.find(r => r.label === activeRange) ?? RANGES[RANGES.length - 1]
-  const cutoff = cutoffDate(rangeDef.days)
-  const allPoints = chartData[activeLift] ?? []
-  const points = cutoff ? allPoints.filter(p => p.date >= cutoff) : allPoints
-  const weights = points.map(p => p.weight)
-  const minW = weights.length ? Math.min(...weights) : 0
-  const maxW = weights.length ? Math.max(...weights) : 100
-  const yDomain = weights.length ? [Math.max(0, minW - 15), maxW + 15] : [0, 100]
-  const tickInterval = points.length <= 7 ? 0 : Math.ceil(points.length / 7)
+  useEffect(() => {
+    async function loadHistory() {
+      if (!activeLift) return
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      
+      const hist = await getExerciseHistory(session.user.id, activeLift)
+      
+      const processed = hist.map((pt, i) => ({
+        ...pt,
+        deloaded: i > 0 && pt.weight < hist[i - 1].weight,
+      }))
+      
+      setHistoryData(processed)
+    }
+    loadHistory()
+  }, [activeLift])
 
   if (loading) {
     return (
@@ -125,6 +106,30 @@ export default function Progress() {
       </div>
     )
   }
+
+  if (exercises.length === 0) {
+    return (
+      <div className="screen progress-screen">
+        <nav className="detail-nav">
+          <button className="workout-nav-btn" onClick={() => navigate('/home')}>‹ Back</button>
+          <span className="workout-nav-title">Progress</span>
+          <span style={{ width: 60 }} />
+        </nav>
+        <div className="progress-body" style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ color: '#888', textAlign: 'center' }}>Log a workout to see progress</p>
+        </div>
+      </div>
+    )
+  }
+
+  const rangeDef = RANGES.find(r => r.label === activeRange) ?? RANGES[RANGES.length - 1]
+  const cutoff = cutoffDate(rangeDef.days)
+  const points = cutoff ? historyData.filter(p => p.date >= cutoff) : historyData
+  const weights = points.map(p => p.weight).filter(w => w != null)
+  const minW = weights.length ? Math.min(...weights) : 0
+  const maxW = weights.length ? Math.max(...weights) : 100
+  const yDomain = weights.length ? [Math.max(0, minW - 15), maxW + 15] : [0, 100]
+  const tickInterval = points.length <= 7 ? 0 : Math.ceil(points.length / 7)
 
   return (
     <div className="screen progress-screen">
@@ -135,13 +140,13 @@ export default function Progress() {
       </nav>
 
       <div className="progress-tabs">
-        {ALL_LIFTS.map(lift => (
+        {exercises.map(lift => (
           <button
             key={lift}
             className={`progress-tab ${activeLift === lift ? 'progress-tab--active' : ''}`}
             onClick={() => setActiveLift(lift)}
           >
-            {LIFT_ABBR[lift]}
+            {getAbbr(lift)}
           </button>
         ))}
       </div>

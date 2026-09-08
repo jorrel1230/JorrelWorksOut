@@ -18,7 +18,6 @@ import ActiveWorkout from './screens/ActiveWorkout'
 import SessionSummary from './screens/SessionSummary'
 import History from './screens/History'
 import SessionDetail from './screens/SessionDetail'
-import EditWeights from './screens/EditWeights'
 import Progress from './screens/Progress'
 import './App.css'
 
@@ -90,7 +89,6 @@ function App() {
             <Route path="/summary" element={<SessionSummary />} />
             <Route path="/history" element={<History />} />
             <Route path="/session/:id" element={<SessionDetail />} />
-            <Route path="/edit-weights" element={<EditWeights />} />
             <Route path="/progress" element={<Progress />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </>
