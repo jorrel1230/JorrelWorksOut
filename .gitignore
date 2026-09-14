@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 backups
+HANDOFF.md
 supabase/.temp
 supabase/seed-historical.sql
 src/data/seedData.js
@@ -30,3 +31,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Automated browser validation artifacts
+playwright-report/
+test-results/

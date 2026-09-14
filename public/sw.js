@@ -1,40 +1,31 @@
-const CACHE_NAME = 'jorrel-works-out-v1'
-const APP_SHELL = [
-  '/JorrelWorksOut/',
-  '/JorrelWorksOut/index.html',
-  '/JorrelWorksOut/manifest.json',
-  '/JorrelWorksOut/icon.svg',
-  '/JorrelWorksOut/icon-192.png',
-  '/JorrelWorksOut/icon-512.png',
-  '/JorrelWorksOut/apple-touch-icon.png',
-]
+/* Build fills these placeholders with the current app shell, including hashed JS. */
+const CACHE_NAME = 'jwo-shell-__BUILD_ID__'
+const APP_SHELL = [] // Injected by Vite at build time.
+const BASE = '/JorrelWorksOut/'
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)))
-  self.skipWaiting()
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()))
 })
-
 self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.map(key => key === CACHE_NAME ? null : caches.delete(key))))
-  )
-  self.clients.claim()
+  event.waitUntil((async () => {
+    const names = await caches.keys()
+    await Promise.all(names.filter(name => name !== CACHE_NAME && (name.startsWith('jwo-shell-') || name === 'jorrel-works-out-v1')).map(name => caches.delete(name)))
+    await self.clients.claim()
+  })())
 })
-
 self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET') return
   const url = new URL(event.request.url)
-  if (url.origin !== self.location.origin) return
-
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      const network = fetch(event.request).then(response => {
-        const copy = response.clone()
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy))
-        return response
-      }).catch(() => cached)
-
-      return cached || network
-    })
-  )
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin || !url.pathname.startsWith(BASE)) return
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request).then(async response => {
+      if (!response.ok) throw new Error('Navigation unavailable')
+      const cache = await caches.open(CACHE_NAME)
+      await cache.put(`${BASE}index.html`, response.clone())
+      return response
+    }).catch(() => caches.match(`${BASE}index.html`)))
+  } else if (APP_SHELL.includes(url.pathname)) {
+    // These are same-origin immutable build assets. Preview servers may vary on Origin,
+    // while precache requests and module requests send different Origin headers.
+    event.respondWith(caches.match(event.request, { ignoreVary: true }).then(cached => cached || fetch(event.request)))
+  }
 })
