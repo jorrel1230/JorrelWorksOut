@@ -4,12 +4,24 @@ import assert from 'node:assert/strict'
 import Dexie from 'dexie'
 import { db } from '../src/lib/db.js'
 import { fingerprint, newExercise, newSet, newWorkout, normalizeWorkout, numberValue, validDate } from '../src/lib/model.js'
-import { deleteResource, deleteWorkout, exportData, listRecords, loadDraft, loadWorkout, queueOwner, saveDraft, saveResource, saveWorkout } from '../src/lib/repository.js'
+import { deleteResource, deleteWorkout, exportData, listExerciseNames, listRecords, loadDraft, loadWorkout, queueOwner, saveDraft, saveResource, saveWorkout } from '../src/lib/repository.js'
 import { queueOperations, queueStatus, syncAccount } from '../src/lib/sync.js'
 
 // All database operations in this file use fake-indexeddb in this Node process, never a browser database.
 beforeEach(async () => { await db.delete(); await db.open() })
 after(async () => { await db.delete() })
+test('exercise suggestions combine catalog and both history formats without leaking accounts', async () => {
+  await db.exercises.bulkPut([{ id: 'cat', user_id: 'a', name: ' Squat ' }, { id: 'other-cat', user_id: 'b', name: 'Private catalog' }])
+  await db.sessions.bulkPut([{ id: 's', user_id: 'a' }, { id: 'other', user_id: 'b' }])
+  await db.workoutExercises.bulkPut([
+    { id: 'we', session_id: 's', user_id: 'a', exercise_name: 'squat' },
+    { id: 'we2', session_id: 's', exercise_name: 'Row' },
+    { id: 'we3', session_id: 'other', user_id: 'b', exercise_name: 'Private history' },
+  ])
+  await db.liftResults.bulkPut([{ id: 'lr', session_id: 's', exercise_name: 'Old press' }, { id: 'lr2', session_id: 'other', exercise_name: 'Private legacy' }])
+  assert.deepEqual(await listExerciseNames('a'), ['Old press', 'Row', 'Squat'])
+  assert.deepEqual(await listExerciseNames('empty'), [])
+})
 const owner = 'account-a'
 function workout(userId = owner) {
   const result = newWorkout(userId)

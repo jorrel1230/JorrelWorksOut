@@ -12,8 +12,8 @@ async function startLocal(page, url = './') {
 async function createWorkout(page) {
   await page.getByRole('button', { name: 'New workout', exact: true }).click()
   await page.getByLabel('Workout type', { exact: true }).fill('Independent training')
+  await page.getByLabel('New exercise name', { exact: true }).fill('Custom press')
   await page.getByRole('button', { name: 'Add exercise', exact: true }).click()
-  await page.getByLabel('Exercise name', { exact: true }).fill('Custom press')
   await page.getByRole('button', { name: 'Add set', exact: true }).click()
   const first = page.getByRole('group', { name: 'Set 1', exact: true })
   await first.getByLabel('Weight (lb)', { exact: true }).fill('12.25')
@@ -72,6 +72,21 @@ test('native workout workflow: distinct sets, draft reload, completion, safe com
   await page.setViewportSize({ width: 320, height: 700 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   expect(errors).toEqual([])
+})
+
+test('exercise picker includes history and supports entirely new movements', async ({ page }) => {
+  await startLocal(page)
+  await createWorkout(page)
+  await page.getByRole('button', { name: 'Complete workout', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('Saved on this device')
+  await page.getByRole('link', { name: 'Workouts', exact: true }).click()
+  await page.getByRole('button', { name: 'New workout', exact: true }).click()
+  await page.getByLabel('Previous exercises and catalog').selectOption('Custom press')
+  await page.getByRole('button', { name: 'Add selected exercise', exact: true }).click()
+  await expect(page.getByLabel('Exercise name', { exact: true })).toHaveValue('Custom press')
+  await page.getByLabel('New exercise name', { exact: true }).fill('Brand new movement')
+  await page.getByRole('button', { name: 'Add exercise', exact: true }).click()
+  await expect(page.getByLabel('Exercise name', { exact: true }).nth(1)).toHaveValue('Brand new movement')
 })
 
 test('runs, catalog and raw markdown plans are usable from top-level navigation', async ({ page }) => {

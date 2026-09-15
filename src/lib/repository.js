@@ -32,6 +32,27 @@ export async function listRecords(table, userId) {
   if (!['sessions', 'runs', 'exercises', 'trainingPlans', 'runSettings'].includes(table)) throw new Error('Unsupported list.')
   return db[table].where('user_id').equals(userId).toArray()
 }
+export async function listExerciseNames(userId) {
+  const [catalog, sessions] = await Promise.all([
+    listRecords('exercises', userId), listRecords('sessions', userId),
+  ])
+  const sessionIds = sessions.map(row => row.id)
+  const [normalized, legacy] = sessionIds.length ? await Promise.all([
+    db.workoutExercises.where('session_id').anyOf(sessionIds).toArray(),
+    db.liftResults.where('session_id').anyOf(sessionIds).toArray(),
+  ]) : [[], []]
+  const names = new Map()
+  for (const name of [
+    ...catalog.map(row => row.name),
+    ...normalized.filter(row => !row.user_id || row.user_id === userId).map(row => row.exercise_name),
+    ...legacy.map(row => row.exercise_name),
+  ]) {
+    const trimmed = name?.trim()
+    if (trimmed && !names.has(trimmed.toLowerCase())) names.set(trimmed.toLowerCase(), trimmed)
+  }
+  return [...names.values()].sort((a, b) => a.localeCompare(b))
+}
+
 export async function loadWorkout(id, userId) {
   const session = await db.sessions.get(id)
   if (!session) return null

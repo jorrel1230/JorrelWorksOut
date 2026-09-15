@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { deleteWorkout, listDrafts, listRecords, loadWorkout, saveDraft, saveWorkout } from '../lib/repository.js'
+import { deleteWorkout, listDrafts, listRecords, listExerciseNames, loadWorkout, saveDraft, saveWorkout } from '../lib/repository.js'
 import { fingerprint, newExercise, newSet, newWorkout } from '../lib/model.js'
 import { Checkbox, Feedback, Field, RecordDetails } from './Fields.jsx'
 import { downloadJson, useEditor } from './editor.js'
@@ -37,10 +37,27 @@ export function WorkoutList({ userId, revision, onSaved }) {
 
 export function WorkoutEditor({ userId, id, onSaved }) {
   const editor = useEditor(userId, `workouts/${id}`, () => loadWorkout(id, userId))
-  const [catalog, setCatalog] = useState([])
-  useEffect(() => { listRecords('exercises', userId).then(setCatalog).catch(() => {}) }, [userId])
+  const [exerciseNames, setExerciseNames] = useState([])
+  const [selectedExercise, setSelectedExercise] = useState('')
+  const [newName, setNewName] = useState('')
+  const [pickerError, setPickerError] = useState('')
+  useEffect(() => {
+    let active = true
+    listExerciseNames(userId).then(names => { if (active) setExerciseNames(names) })
+      .catch(() => { if (active) setPickerError('Could not load exercise history. You can still enter a new name.') })
+    return () => { active = false }
+  }, [userId])
   const { value, status, error, busy, change } = editor
   const session = value?.session
+  function addExercise(name) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    change({ ...value, exercises: [...value.exercises, { ...newExercise(session), exercise_name: trimmed }] })
+    setExerciseNames(names => names.some(item => item.toLowerCase() === trimmed.toLowerCase())
+      ? names : [...names, trimmed].sort((a, b) => a.localeCompare(b)))
+    setSelectedExercise('')
+    setNewName('')
+  }
   function setSession(key, next) { change({ ...value, session: { ...session, [key]: next } }) }
   function updateExercise(index, next) { change({ ...value, exercises: value.exercises.map((row, position) => position === index ? next : row) }) }
   function moveExercise(index, direction) {
@@ -66,7 +83,7 @@ export function WorkoutEditor({ userId, id, onSaved }) {
           <Field label="Workout type" required value={session.type} onChange={next => setSession('type', next)} />
           <details><summary>Session notes</summary><Field label="Notes" type="textarea" value={session.note} onChange={next => setSession('note', next)} /></details>
         </fieldset>
-        <datalist id="exercise-names">{catalog.map(row => <option key={row.id} value={row.name} />)}</datalist>
+        <datalist id="exercise-names">{exerciseNames.map(name => <option key={name} value={name} />)}</datalist>
         {value.exercises.map((exercise, index) => <fieldset key={exercise.id} disabled={busy}>
           <legend>Exercise {index + 1}: {exercise.exercise_name || 'unnamed'}</legend>
           <Field label="Exercise name" required list="exercise-names" value={exercise.exercise_name} onChange={next => updateExercise(index, { ...exercise, exercise_name: next })} />
@@ -87,7 +104,18 @@ export function WorkoutEditor({ userId, id, onSaved }) {
           <p><button type="button" onClick={() => updateExercise(index, { ...exercise, sets: [...exercise.sets, newSet(exercise.id)] })}>Add set</button></p>
           <button type="button" onClick={() => { if (window.confirm('Remove this exercise and all its sets?')) change({ ...value, exercises: value.exercises.filter(row => row.id !== exercise.id) }) }}>Remove exercise</button>
         </fieldset>)}
-        <p><button type="button" disabled={busy} onClick={() => change({ ...value, exercises: [...value.exercises, newExercise(session)] })}>Add exercise</button></p>
+        <fieldset disabled={busy}><legend>Add exercise</legend>
+          <p><label>Previous exercises and catalog{' '}
+            <select value={selectedExercise} onChange={event => setSelectedExercise(event.target.value)}>
+              <option value="">Choose an exercise</option>
+              {exerciseNames.map(name => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </label>{' '}<button type="button" disabled={!selectedExercise} onClick={() => addExercise(selectedExercise)}>Add selected exercise</button></p>
+          <p>Or enter any new exercise:</p>
+          <Field label="New exercise name" value={newName} onChange={setNewName} />
+          <button type="button" disabled={!newName.trim()} onClick={() => addExercise(newName)}>Add exercise</button>
+          {pickerError && <p role="status">{pickerError}</p>}
+        </fieldset>
         <p>Completing a workout does not mark unchecked sets as completed. No weights or progression are changed automatically.</p>
         <p><button type="submit" disabled={busy}>{session.is_complete ? 'Save completed workout changes' : 'Save in-progress workout'}</button>{' '}
           {!session.is_complete && <button type="button" disabled={busy} onClick={() => save(true)}>Complete workout</button>}</p>
