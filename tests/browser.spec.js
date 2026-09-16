@@ -74,7 +74,7 @@ test('native workout workflow: distinct sets, draft reload, completion, safe com
   expect(errors).toEqual([])
 })
 
-test('exercise history previews on hover and stays open by tap or keyboard without changing sets', async ({ page }) => {
+test('exercise history ignores hover and toggles by click or keyboard without changing sets', async ({ page }) => {
   await startLocal(page)
   await page.evaluate(async () => {
     const { db } = await import('/JorrelWorksOut/src/lib/db.js')
@@ -93,14 +93,17 @@ test('exercise history previews on hover and stays open by tap or keyboard witho
   const summary = page.locator('summary').filter({ hasText: 'Recent history: Bench Press' })
   const panel = page.locator('details').filter({ has: summary })
   await summary.hover()
+  await expect(panel).not.toHaveAttribute('open', '')
+  await summary.click()
   await expect(panel).toHaveAttribute('open', '')
   await expect(panel.getByText('Set 2: 110 lb × 6 reps', { exact: true })).toBeVisible()
   await expect(panel.getByText('Exercise notes: Paused reps')).toBeVisible()
   await expect(panel).not.toContainText('Private note')
   await page.getByRole('heading', { name: 'Workout', exact: true }).hover()
+  await expect(panel).toHaveAttribute('open', '')
+  await summary.click()
   await expect(panel).not.toHaveAttribute('open', '')
   await summary.click()
-  await page.getByRole('heading', { name: 'Workout', exact: true }).hover()
   await expect(panel).toHaveAttribute('open', '')
   await summary.focus()
   await page.keyboard.press('Escape')
