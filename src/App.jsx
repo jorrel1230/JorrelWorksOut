@@ -4,11 +4,12 @@ import { ACCOUNT_ACCESS_KEY, LOCAL_AUTH_KEY, resolveAccount, storedAccount } fro
 import { LOCAL_USER_ID } from './lib/model.js'
 import { syncAccount } from './lib/sync.js'
 import { Account } from './ui/Account.jsx'
+import { Progress } from './ui/Progress.jsx'
 import { ResourceEditor, ResourceList } from './ui/Resources.jsx'
 import { WorkoutEditor, WorkoutList } from './ui/Workouts.jsx'
 import { hasPendingWrites } from './ui/editor.js'
 
-const navigation = [['workouts', 'Workouts'], ['runs', 'Runs'], ['exercises', 'Exercise catalog'], ['trainingPlans', 'Training plans'], ['account', 'Account / data']]
+const navigation = [['workouts', 'Workouts'], ['runs', 'Runs'], ['progress', 'Progress'], ['exercises', 'Exercise catalog'], ['trainingPlans', 'Training plans'], ['account', 'Account / data']]
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -79,6 +80,7 @@ export default function App() {
   let page
   if (user === undefined) page = <p role="status">Opening account…</p>
   else if (!user || route === 'account') page = <Account key={userId || 'signed-out'} user={user} revision={revision} syncStatus={syncStatus} onSync={runSync} onAuthChange={authChange} />
+  else if (route === 'progress') page = <Progress {...props} />
   else if (route === 'workouts') page = id ? <WorkoutEditor {...props} id={id} /> : <WorkoutList {...props} />
   else if (['runs', 'exercises', 'trainingPlans'].includes(route)) page = id ? <ResourceEditor {...props} table={route} id={id} /> : <ResourceList {...props} table={route} />
   else page = <section><h2>Page not found</h2><p>Old screen links have been replaced. Choose a section above. Your saved data is unchanged.</p></section>

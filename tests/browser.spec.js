@@ -74,6 +74,25 @@ test('native workout workflow: distinct sets, draft reload, completion, safe com
   expect(errors).toEqual([])
 })
 
+test('native progress explorer shows saved history and filters without CSS', async ({ page }) => {
+  await startLocal(page)
+  await createWorkout(page)
+  await page.getByRole('button', { name: 'Complete workout', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('Saved on this device')
+  await page.getByRole('link', { name: 'Progress', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Progress', exact: true })).toBeVisible()
+  await page.getByLabel('Include warmup sets').check()
+  await expect(page.getByRole('cell', { name: '85.75', exact: true }).first()).toBeVisible()
+  await expect(page.locator('meter')).toHaveCount(1)
+  await page.getByLabel('Metric', { exact: true }).selectOption('weight')
+  await expect(page.getByRole('cell', { name: '12.25', exact: true }).first()).toBeVisible()
+  await page.getByLabel('From date', { exact: true }).fill('2099-01-01')
+  await expect(page.getByText('No completed sets found for this selection.')).toBeVisible()
+  await page.getByRole('button', { name: 'All dates' }).click()
+  await expect(page.locator('meter')).toHaveCount(1)
+  expect(await page.locator('style, link[rel="stylesheet"], [style]').count()).toBe(0)
+})
+
 test('exercise picker includes history and supports entirely new movements', async ({ page }) => {
   await startLocal(page)
   await createWorkout(page)
