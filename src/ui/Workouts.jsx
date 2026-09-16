@@ -3,6 +3,7 @@ import { deleteWorkout, listDrafts, listRecords, listExerciseNames, loadWorkout,
 import { fingerprint, newExercise, newSet, newWorkout } from '../lib/model.js'
 import { Checkbox, Feedback, Field, RecordDetails } from './Fields.jsx'
 import { downloadJson, useEditor } from './editor.js'
+import { ExerciseHistory } from './ExerciseHistory.jsx'
 
 export function WorkoutList({ userId, revision, onSaved }) {
   const [records, setRecords] = useState([])
@@ -35,12 +36,26 @@ export function WorkoutList({ userId, revision, onSaved }) {
   </section>
 }
 
-export function WorkoutEditor({ userId, id, onSaved }) {
+export function WorkoutEditor({ userId, id, revision, onSaved }) {
   const editor = useEditor(userId, `workouts/${id}`, () => loadWorkout(id, userId))
   const [exerciseNames, setExerciseNames] = useState([])
   const [selectedExercise, setSelectedExercise] = useState('')
   const [newName, setNewName] = useState('')
   const [pickerError, setPickerError] = useState('')
+  const [history, setHistory] = useState(null)
+  const [historyError, setHistoryError] = useState('')
+  useEffect(() => {
+    let active = true
+    async function loadHistory() {
+      try {
+        const sessions = await listRecords('sessions', userId)
+        const workouts = await Promise.all(sessions.filter(row => row.is_complete && row.id !== id).map(row => loadWorkout(row.id, userId)))
+        if (active) { setHistory(workouts.filter(Boolean)); setHistoryError('') }
+      } catch (err) { if (active) setHistoryError(err.message) }
+    }
+    void loadHistory()
+    return () => { active = false }
+  }, [userId, id, revision])
   useEffect(() => {
     let active = true
     listExerciseNames(userId).then(names => { if (active) setExerciseNames(names) })
@@ -87,6 +102,7 @@ export function WorkoutEditor({ userId, id, onSaved }) {
         {value.exercises.map((exercise, index) => <fieldset key={exercise.id} disabled={busy}>
           <legend>Exercise {index + 1}: {exercise.exercise_name || 'unnamed'}</legend>
           <Field label="Exercise name" required list="exercise-names" value={exercise.exercise_name} onChange={next => updateExercise(index, { ...exercise, exercise_name: next })} />
+          <ExerciseHistory key={exercise.exercise_name} name={exercise.exercise_name} workouts={history} currentId={id} date={session.date} error={historyError} />
           <p><button type="button" disabled={index === 0} onClick={() => moveExercise(index, -1)}>Move exercise up</button>{' '}
             <button type="button" disabled={index === value.exercises.length - 1} onClick={() => moveExercise(index, 1)}>Move exercise down</button></p>
           <details><summary>Exercise notes</summary><Field label="Exercise notes" type="textarea" value={exercise.notes} onChange={next => updateExercise(index, { ...exercise, notes: next })} /></details>
@@ -111,6 +127,7 @@ export function WorkoutEditor({ userId, id, onSaved }) {
               {exerciseNames.map(name => <option key={name} value={name}>{name}</option>)}
             </select>
           </label>{' '}<button type="button" disabled={!selectedExercise} onClick={() => addExercise(selectedExercise)}>Add selected exercise</button></p>
+          <ExerciseHistory key={selectedExercise} name={selectedExercise} workouts={history} currentId={id} date={session.date} error={historyError} />
           <p>Or enter any new exercise:</p>
           <Field label="New exercise name" value={newName} onChange={setNewName} />
           <button type="button" disabled={!newName.trim()} onClick={() => addExercise(newName)}>Add exercise</button>

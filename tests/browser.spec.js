@@ -74,6 +74,60 @@ test('native workout workflow: distinct sets, draft reload, completion, safe com
   expect(errors).toEqual([])
 })
 
+test('exercise history previews on hover and stays open by tap or keyboard without changing sets', async ({ page }) => {
+  await startLocal(page)
+  await page.evaluate(async () => {
+    const { db } = await import('/JorrelWorksOut/src/lib/db.js')
+    await db.sessions.bulkPut([
+      { id: 'past', user_id: 'local-user', date: '2020-01-01', is_complete: true },
+      { id: 'private-past', user_id: 'another-user', date: '2020-01-02', is_complete: true },
+    ])
+    await db.liftResults.bulkPut([
+      { id: 'past-result', session_id: 'past', exercise_name: 'Bench Press', set_weights: [100, 110], partial_reps: [8, 6], notes: 'Paused reps' },
+      { id: 'private-result', session_id: 'private-past', exercise_name: 'Bench Press', set_weights: [999], partial_reps: [99], notes: 'Private note' },
+    ])
+  })
+  await page.getByRole('button', { name: 'New workout', exact: true }).click()
+  await page.getByLabel('New exercise name', { exact: true }).fill('Bench Press')
+  await page.getByRole('button', { name: 'Add exercise', exact: true }).click()
+  const summary = page.locator('summary').filter({ hasText: 'Recent history: Bench Press' })
+  const panel = page.locator('details').filter({ has: summary })
+  await summary.hover()
+  await expect(panel).toHaveAttribute('open', '')
+  await expect(panel.getByText('Set 2: 110 lb × 6 reps', { exact: true })).toBeVisible()
+  await expect(panel.getByText('Exercise notes: Paused reps')).toBeVisible()
+  await expect(panel).not.toContainText('Private note')
+  await page.getByRole('heading', { name: 'Workout', exact: true }).hover()
+  await expect(panel).not.toHaveAttribute('open', '')
+  await summary.click()
+  await page.getByRole('heading', { name: 'Workout', exact: true }).hover()
+  await expect(panel).toHaveAttribute('open', '')
+  await summary.focus()
+  await page.keyboard.press('Escape')
+  await expect(panel).not.toHaveAttribute('open', '')
+  await page.keyboard.press('Enter')
+  await expect(panel).toHaveAttribute('open', '')
+  await expect(page.getByRole('group', { name: 'Set 1', exact: true })).toHaveCount(0)
+  await expect(page.getByLabel('Exercise name', { exact: true })).toHaveValue('Bench Press')
+  expect(await page.locator('style, link[rel="stylesheet"], [style]').count()).toBe(0)
+})
+
+test.describe('touch history', () => {
+  test.use({ hasTouch: true, isMobile: true })
+  test('tap toggles history without requiring hover', async ({ page }) => {
+    await startLocal(page)
+    await page.getByRole('button', { name: 'New workout', exact: true }).tap()
+    await page.getByLabel('New exercise name', { exact: true }).fill('New movement')
+    await page.getByRole('button', { name: 'Add exercise', exact: true }).tap()
+    const summary = page.locator('summary').filter({ hasText: 'Recent history: New movement' })
+    const panel = page.locator('details').filter({ has: summary })
+    await summary.tap()
+    await expect(panel.getByText('No previous completed workouts for this exercise.')).toBeVisible()
+    await summary.tap()
+    await expect(panel).not.toHaveAttribute('open', '')
+  })
+})
+
 test('native progress explorer shows saved history and filters without CSS', async ({ page }) => {
   await startLocal(page)
   await createWorkout(page)
